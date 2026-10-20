@@ -1,0 +1,2474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>FleetOps | Synthetic Fleet Monitoring Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f2f5;--card:#fff;--card2:#f7f9fb;
+  --blue:#1a6fc4;--blue2:#2681e0;--bluepale:#e8f1fc;
+  --green:#16a34a;--greenpale:#e3f5ea;
+  --amber:#d97706;--amberpale:#fef3e0;
+  --red:#dc2626;--redpale:#fde8e8;
+  --purple:#7c3aed;--purplepale:#ede9fe;
+  --teal:#0d9488;--tealpale:#e0f5f3;
+  --t1:#1a2332;--t2:#4a5568;--t3:#8a96a8;
+  --border:#dde2ea;--radius:14px;
+  --sh:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04);
+  --sh2:0 2px 8px rgba(0,0,0,.08),0 8px 20px rgba(0,0,0,.06);
+}
+body{background:var(--bg);color:var(--t1);font-family:'Inter',sans-serif;font-size:14px;min-height:100vh;overflow-x:hidden}
+
+/* NAV */
+.nav{background:var(--card);border-bottom:1px solid var(--border);height:56px;padding:0 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px;color:var(--t1)}
+.brand svg{width:26px;height:26px}
+.badge{background:var(--blue);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:1px}
+.spacer{flex:1}
+.clockpill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);background:var(--bg);border:1px solid var(--border);padding:5px 12px;border-radius:30px;font-family:'DM Mono',monospace}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.notif-wrap{position:relative;flex:0 0 auto}
+.notif-btn{position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:50%;background:var(--card);color:var(--t2);cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.notif-btn:hover,.notif-wrap.open .notif-btn{background:var(--bluepale);border-color:rgba(26,111,196,.35);color:var(--blue)}
+.notif-count{display:none;position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;align-items:center;justify-content:center;border:2px solid var(--card);border-radius:10px;background:var(--red);color:#fff;font:700 9px/14px 'Inter',sans-serif}
+.notif-count.show{display:flex}
+.notif-panel{display:none;position:absolute;top:43px;right:0;width:min(380px,calc(100vw - 32px));max-height:min(540px,calc(100vh - 76px));overflow:hidden;border:1px solid var(--border);border-radius:12px;background:var(--card);box-shadow:0 14px 40px rgba(15,23,42,.18);z-index:400}
+.notif-wrap.open .notif-panel{display:block}
+.notif-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 15px;border-bottom:1px solid var(--border)}
+.notif-title{font-size:13px;font-weight:700;color:var(--t1)}
+.notif-summary{font-size:10px;color:var(--t3);margin-top:2px}
+.notif-close{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:7px;background:transparent;color:var(--t3);font-size:20px;line-height:1;cursor:pointer}
+.notif-close:hover{background:var(--bg);color:var(--t1)}
+.notif-list{max-height:450px;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px}
+.notif-list .aitem{margin:0}
+
+/* TOP PROGRESS */
+#prog{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--blue),#60a5fa);z-index:9999;transition:width .25s;opacity:0;border-radius:0 2px 2px 0}
+#prog.on{opacity:1}
+
+/* FILTERS */
+.filters{background:var(--card);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:248px;transition:margin-left .22s ease}
+body.sidebar-hidden .filters{margin-left:0}
+.flabel{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.8px}
+select,input[type=date]{background:var(--bg);border:1px solid var(--border);color:var(--t1);padding:6px 10px;border-radius:7px;font-family:inherit;font-size:13px;outline:none;min-width:130px}
+select:focus,input[type=date]:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,111,196,.1)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:7px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;transition:all .15s}
+.btnp{background:var(--blue);color:#fff}.btnp:hover{background:var(--blue2)}.btnp:disabled{opacity:.5;cursor:not-allowed}
+.btng{background:var(--bg);color:var(--t2);border:1px solid var(--border)}.btng:hover{background:#e9ecef}
+.fright{margin-left:auto;display:flex;gap:8px}
+.eq-multi{position:relative;min-width:230px}
+.eq-multi-trigger{width:100%;min-height:32px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--t1);font:500 13px/1.3 'Inter',sans-serif;cursor:pointer;text-align:left}
+.eq-multi-trigger:focus,.eq-multi.open .eq-multi-trigger{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,111,196,.1)}
+.eq-multi-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eq-multi-count{flex:0 0 auto;display:none;min-width:20px;padding:1px 6px;border-radius:10px;background:var(--blue);color:#fff;font-size:10px;font-weight:700;text-align:center}
+.eq-multi-count.show{display:inline-block}
+.eq-multi-panel{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:250;width:min(340px,calc(100vw - 32px));padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--card);box-shadow:var(--sh2)}
+.eq-multi.open .eq-multi-panel{display:block}
+.eq-multi-tools{display:flex;align-items:center;justify-content:space-between;padding:3px 5px 8px;border-bottom:1px solid var(--border);margin-bottom:5px}
+.eq-multi-hint{font-size:10px;color:var(--t3)}
+.eq-multi-all{border:0;background:transparent;color:var(--blue);font:600 11px 'Inter',sans-serif;cursor:pointer}
+.eq-multi-options{max-height:245px;overflow-y:auto;padding:2px}
+.eq-multi-option{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:7px;color:var(--t2);font-size:12px;cursor:pointer;user-select:none}
+.eq-multi-option:hover{background:var(--bg);color:var(--t1)}
+.eq-multi-option.all{font-weight:600;color:var(--t1);border-bottom:1px solid var(--border);border-radius:0;margin-bottom:3px;padding-bottom:9px}
+.eq-multi-option input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
+
+/* MAIN */
+.main{padding:20px 24px;display:flex;flex-direction:column;gap:18px;max-width:none;margin:0}
+
+/* SHIMMER SKELETON */
+@keyframes shimmer{0%{background-position:-600px 0}100%{background-position:600px 0}}
+.sk{background:linear-gradient(90deg,#e4e8ed 25%,#edf0f4 50%,#e4e8ed 75%);background-size:600px 100%;animation:shimmer 1.3s infinite linear;border-radius:6px}
+
+/* KPI */
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px}
+.kcard{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden;box-shadow:var(--sh);transition:box-shadow .2s,transform .15s}
+.kcard:hover{box-shadow:var(--sh2);transform:translateY(-1px)}
+.kcard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kcard.blue::before{background:var(--blue)}.kcard.green::before{background:var(--green)}.kcard.amber::before{background:var(--amber)}.kcard.red::before{background:var(--red)}.kcard.teal::before{background:var(--teal)}.kcard.purple::before{background:var(--purple)}
+.kicon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:6px}
+.kicon.blue{background:var(--bluepale);color:var(--blue)}.kicon.green{background:var(--greenpale);color:var(--green)}.kicon.amber{background:var(--amberpale);color:var(--amber)}.kicon.red{background:var(--redpale);color:var(--red)}.kicon.teal{background:var(--tealpale);color:var(--teal)}.kicon.purple{background:var(--purplepale);color:var(--purple)}
+.klabel{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.6px}
+.kval{font-size:26px;font-weight:600;line-height:1.1;color:var(--t1);font-variant-numeric:tabular-nums}
+.kval.sm{font-size:20px}
+.ksub{font-size:11px;color:var(--t3);margin-top:1px}
+
+/* SECTION HDR */
+.shdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.stitle{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.9px;display:flex;align-items:center;gap:7px}
+.stitle::before{content:'';width:3px;height:13px;background:var(--blue);border-radius:2px}
+
+/* STATUS */
+.sgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.scard{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:4px;box-shadow:var(--sh)}
+.sdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.srow{display:flex;align-items:center;gap:7px}
+.slabel{font-size:12px;color:var(--t2);font-weight:500}
+.scount{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.ssub{font-size:11px;color:var(--t3)}
+.sbar{height:4px;border-radius:2px;background:var(--bg);margin-top:4px}
+.sbarfill{height:4px;border-radius:2px;transition:width .6s ease}
+.spct{font-size:11px;color:var(--t3);text-align:right;margin-top:1px}
+
+/* CHART CARDS */
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ccard{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--sh)}
+.ccard.wide{grid-column:1/-1}
+.cwrap{position:relative;width:100%}
+
+/* CHART LOADING OVERLAY */
+.covl{position:absolute;inset:0;background:rgba(255,255,255,.88);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:5;transition:opacity .2s}
+.covl.done{opacity:0;pointer-events:none}
+.msp{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.covlabel{font-size:11px;color:var(--t3);font-weight:500}
+
+/* TABS */
+
+/* TABLE */
+.tcard{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--sh);overflow:hidden}
+.tscroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding:0 12px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--t2);font-size:13px;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg);color:var(--t1)}
+.pill{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.pt{background:var(--bluepale);color:var(--blue)}
+.pu{background:var(--greenpale);color:var(--green)}
+.pi{background:var(--amberpale);color:var(--amber)}
+.pb{background:var(--redpale);color:var(--red)}
+
+/* ALERTS */
+.apanel{display:flex;flex-direction:column;gap:7px}
+.aitem{display:flex;align-items:flex-start;gap:10px;border-radius:8px;padding:10px 12px;border:1px solid var(--border)}
+.aitem.danger{background:var(--redpale);border-left:3px solid var(--red)}
+.aitem.warning{background:var(--amberpale);border-left:3px solid var(--amber)}
+.aitem.info{background:var(--bluepale);border-left:3px solid var(--blue)}
+.aicon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.aicon.danger{background:rgba(220,38,38,.12);color:var(--red)}
+.aicon.warning{background:rgba(217,119,6,.12);color:var(--amber)}
+.aicon.info{background:rgba(26,111,196,.12);color:var(--blue)}
+.amsg{font-size:12px;color:var(--t1);font-weight:500;line-height:1.4}
+.aeq{font-size:11px;color:var(--t3);margin-top:1px}
+
+/* EQ TYPE GRID */
+.eqgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.eqbadge{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.eqbadge.tt{background:var(--bluepale);color:var(--blue);border:1px solid rgba(26,111,196,.2)}
+.eqbadge.sv{background:var(--greenpale);color:var(--green);border:1px solid rgba(22,163,74,.2)}
+.eqbadge.ct{background:var(--amberpale);color:var(--amber);border:1px solid rgba(217,119,6,.2)}
+.eqbadge.ltr{background:var(--purplepale);color:var(--purple);border:1px solid rgba(124,58,237,.2)}
+.eqname{font-size:13px;font-weight:600;color:var(--t1)}
+.eqcount{font-size:11px;color:var(--t3);margin-top:1px}
+
+/* SITE BARS */
+.siterows{display:flex;flex-direction:column;gap:9px}
+.siterow{display:flex;flex-direction:column;gap:3px}
+.sitetop{display:flex;justify-content:space-between;font-size:12px;color:var(--t2)}
+.sitenm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;font-weight:500}
+.sitebg{background:var(--bg);border-radius:3px;height:5px;overflow:hidden}
+.sitefill{height:5px;border-radius:3px;background:var(--blue);transition:width .6s ease}
+
+/* LEGEND */
+.leg{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.legitem{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2)}
+.legdot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+/* TWO COL */
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.empty{text-align:center;padding:28px;color:var(--t3);font-size:13px}
+.abadge{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px}
+.noalert{display:flex;align-items:center;gap:7px;color:var(--green);font-size:13px;padding:8px 0;font-weight:500}
+
+/* LOADING PLACEHOLDER FOR TABLES */
+.tload{display:flex;align-items:center;justify-content:center;padding:24px;gap:10px;color:var(--t3);font-size:13px}
+.loading-banner{display:flex;align-items:center;gap:12px;padding:13px 15px;border:1px solid rgba(26,111,196,.18);border-radius:10px;background:var(--bluepale);color:var(--t2)}
+.loading-banner .msp{flex:0 0 auto;background:var(--card)}
+.loading-title{font-size:12px;font-weight:700;color:var(--t1)}
+.loading-copy{font-size:11px;color:var(--t3);margin-top:2px}
+.loading-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}
+.loading-metric{height:92px;padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--card);box-shadow:var(--sh)}
+.loading-table{padding:18px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);box-shadow:var(--sh)}
+.loading-table-head,.loading-table-row{display:grid;grid-template-columns:repeat(var(--load-cols,6),minmax(65px,1fr));gap:18px;align-items:center}
+.loading-table-head{padding-bottom:12px;border-bottom:1px solid var(--border)}
+.loading-table-row{padding:13px 0;border-bottom:1px solid var(--border)}
+.loading-table-row:last-child{border-bottom:0}
+.loading-panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.loading-panel{min-height:180px;padding:18px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);box-shadow:var(--sh)}
+.loading-site-row{display:flex;flex-direction:column;gap:7px;margin-bottom:15px}
+.loading-site-row:last-child{margin-bottom:0}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+@media(max-width:760px){.loading-panel-grid{grid-template-columns:1fr}.loading-table-head,.loading-table-row{gap:9px}.loading-table-head>*:nth-child(n+4),.loading-table-row>*:nth-child(n+4){display:none}.loading-table-head,.loading-table-row{grid-template-columns:repeat(3,minmax(60px,1fr))}}
+@media(prefers-reduced-motion:reduce){.sk,.msp{animation:none}.sk{background:#e7ebf0}}
+
+/* ROUTE AVG TABLE */
+.rtable{width:100%;border-collapse:collapse}
+.rtable th{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding:0 10px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.rtable td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;color:var(--t2);white-space:nowrap}
+.rtable tr:last-child td{border-bottom:none}
+.rtable tr:hover td{background:var(--bg)}
+.hrs-pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.hrs-low{background:#e3f5ea;color:#16a34a}
+.hrs-mid{background:#fef3e0;color:#d97706}
+.hrs-high{background:#fde8e8;color:#dc2626}
+.route-tabs{display:flex;gap:2px;background:var(--bg);border-radius:8px;padding:2px;width:fit-content}
+.route-tab{padding:4px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;color:var(--t3);border:none;background:transparent;font-family:inherit;transition:all .12s}
+.route-tab.on{background:var(--card);color:var(--blue);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.route-filter-bar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;padding:12px;margin-bottom:12px;border:1px solid var(--border);border-radius:9px;background:var(--bg)}
+.route-filter-field{display:flex;flex-direction:column;gap:5px;min-width:210px;flex:1}
+.route-filter-field span{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px}
+.route-filter-field select{width:100%;background:var(--card)}
+.route-filter-clear{height:32px;padding:0 12px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--t2);font:600 11px 'Inter',sans-serif;cursor:pointer;white-space:nowrap}
+.route-filter-clear:hover{border-color:var(--blue);color:var(--blue)}
+.route-filter-summary{margin-left:auto;padding:0 2px 7px;font-size:11px;color:var(--t3);white-space:nowrap}
+@media(max-width:620px){.route-filter-field{min-width:100%}.route-filter-clear{flex:1}.route-filter-summary{width:100%;margin-left:0;padding:0}}
+/* OUTLIER PANEL */
+.outpanel{display:flex;flex-direction:column;gap:6px}
+.outrow{display:flex;align-items:center;gap:10px;background:var(--redpale);border:1px solid rgba(220,38,38,.2);border-left:3px solid var(--red);border-radius:8px;padding:9px 12px}
+.outequip{font-size:13px;font-weight:700;color:var(--red);min-width:70px}
+.outdetail{flex:1;font-size:12px;color:var(--t1)}
+.outhrs{font-size:12px;font-weight:600;color:var(--red);white-space:nowrap}
+.outsheet{font-size:10px;color:var(--t3);margin-left:4px}
+.out-clear{color:var(--green);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px;padding:6px 0}
+/* ODO / SMR OUTLIER PANEL */
+.odo-outrow{display:flex;align-items:center;gap:10px;background:#fffbeb;border:1px solid rgba(217,119,6,.25);border-left:3px solid #d97706;border-radius:8px;padding:9px 12px}
+.odo-outrow.fixed{background:#f0fdf4;border-color:rgba(22,163,74,.25);border-left-color:#16a34a}
+.odo-outequip{font-size:13px;font-weight:700;color:#b45309;min-width:70px}
+.odo-outrow.fixed .odo-outequip{color:#15803d}
+.odo-badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px}
+.odo-badge.ODO{background:#fef3c7;color:#92400e}
+.odo-badge.SMR{background:#ede9fe;color:#5b21b6}
+.odo-jump{font-size:12px;font-weight:600;color:#b45309;white-space:nowrap}
+.odo-outrow.fixed .odo-jump{color:#15803d}
+.status-badge-active{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;background:#fde8e8;color:#dc2626;padding:2px 7px;border-radius:10px}
+.status-badge-fixed{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:10px}
+.odo-summary{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.odo-sum-pill{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid}
+.odo-sum-pill.active{background:#fde8e8;color:#dc2626;border-color:rgba(220,38,38,.2)}
+.odo-sum-pill.fixed{background:#dcfce7;color:#15803d;border-color:rgba(22,163,74,.2)}
+.odo-sum-pill.total{background:var(--bg);color:var(--t2);border-color:var(--border)}
+/* show-fixed toggle */
+.fix-toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer;user-select:none}
+.fix-toggle input{cursor:pointer}
+
+.navtab{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:500;color:var(--t3);transition:all .15s}
+.navtab.on{background:var(--card);color:var(--blue);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+
+/* SIDEBAR + REPORT PAGES */
+.side-toggle{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--t2);cursor:pointer;transition:background .15s,color .15s,border-color .15s,transform .2s ease;flex:0 0 auto}
+.side-toggle:hover{background:#eceff3;border-color:#b8c0cc;color:var(--t1)}
+.app-shell{display:block;max-width:none;margin:0}
+.side-nav{position:fixed;top:56px;bottom:0;left:0;width:248px;min-height:0;max-height:none;overflow-y:auto;margin:0;padding:18px 14px;background:var(--card);border:0;border-right:1px solid var(--border);border-radius:0;box-shadow:4px 0 14px rgba(15,23,42,.05);display:flex;flex-direction:column;gap:5px;z-index:90;transition:transform .22s ease,opacity .18s ease}
+.sidebar-hidden .side-nav{transform:translateX(-100%);opacity:0;pointer-events:none}
+.side-label{padding:5px 10px 8px;font-size:9px;font-weight:700;color:var(--t3);letter-spacing:1.1px;text-transform:uppercase}
+.side-nav-btn{width:100%;display:flex;align-items:center;gap:10px;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:var(--t2);font:500 12px 'Inter',sans-serif;text-align:left;cursor:pointer;transition:background .15s,color .15s}
+.side-nav-btn svg{width:15px;height:15px;flex:0 0 auto}
+.side-nav-mark{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:1px solid currentColor;border-radius:6px;font-size:8px;font-weight:800;letter-spacing:.2px}
+.side-nav-btn:hover{background:var(--bg);color:var(--t1)}
+.side-nav-btn.on{background:#e5e8ed;color:var(--t1);font-weight:600;box-shadow:inset 3px 0 0 #4b5563}
+.side-divider{height:1px;background:var(--border);margin:7px 5px}
+.page-stage{min-width:0;margin-left:248px;transition:margin-left .22s ease}
+.sidebar-hidden .page-stage{margin-left:0}
+.side-scrim{display:none}
+.page-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.page-title{font-size:22px;font-weight:600;color:var(--t1);letter-spacing:-.3px}
+.page-subtitle{font-size:12px;color:var(--t3);margin-top:4px;line-height:1.5}
+.page-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.page-metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--sh)}
+.page-metric-label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.7px}
+.page-metric-value{font-size:22px;font-weight:600;color:var(--t1);margin-top:4px;font-variant-numeric:tabular-nums}
+.page-metric-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.page-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.page-search{min-width:240px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;font:13px 'Inter',sans-serif;color:var(--t1);outline:none}
+.page-search:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,111,196,.1)}
+.page-select{min-width:125px}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border);margin-top:8px}
+.pager-info{font-size:11px;color:var(--t3)}
+.pager-buttons{display:flex;align-items:center;gap:6px}
+.pager-btn{border:1px solid var(--border);background:var(--card);color:var(--t2);border-radius:6px;padding:5px 10px;font:500 11px 'Inter',sans-serif;cursor:pointer}
+.pager-btn:hover:not(:disabled){border-color:var(--blue);color:var(--blue)}
+.pager-btn:disabled{opacity:.4;cursor:not-allowed}
+.outlier-edit-btn{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:5px 9px;border:1px solid #b8c0cc;border-radius:6px;background:#f3f4f6;color:#374151;font:600 10px 'Inter',sans-serif;cursor:pointer}
+.outlier-edit-btn:hover{background:#374151;border-color:#374151;color:#fff}
+.modal-backdrop{display:none;position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.48);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:20px}
+.modal-backdrop.open{display:flex}
+.edit-modal{width:min(600px,100%);background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 60px rgba(15,23,42,.22);overflow:hidden}
+.edit-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border)}
+.edit-modal-title{font-size:16px;font-weight:600;color:var(--t1)}
+.edit-modal-sub{font-size:11px;color:var(--t3);margin-top:3px}
+.modal-close{border:0;background:transparent;color:var(--t3);font-size:21px;line-height:1;cursor:pointer}
+.edit-modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.edit-record-meta{padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--t2);line-height:1.6}
+.edit-reason{padding:9px 11px;background:#f3f4f6;border-left:3px solid #6b7280;border-radius:6px;font-size:11px;color:#374151;line-height:1.5}
+.edit-guidance{padding:10px 12px;background:var(--bluepale);border:1px solid rgba(26,111,196,.18);border-radius:8px;font-size:11px;color:#24496f;line-height:1.55}
+.edit-guidance strong{color:#173b62}
+.edit-verify{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card2);font-size:11px;color:var(--t2);line-height:1.45;cursor:pointer}
+.edit-verify input{width:15px;height:15px;margin-top:1px;accent-color:var(--blue);cursor:pointer;flex:0 0 auto}
+.edit-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.edit-field-grid[hidden]{display:none}
+.edit-section-label{grid-column:1/-1;font-size:10px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;padding-bottom:2px;border-bottom:1px solid var(--border)}
+.edit-field{display:flex;flex-direction:column;gap:5px}
+.edit-field label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px}
+.edit-field input,.edit-field select,.edit-field textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 10px;font:500 13px 'Inter',sans-serif;color:var(--t1);outline:none}
+.edit-field input[type="number"],.edit-field input[type="time"]{font-family:'DM Mono',monospace}
+.edit-field textarea{min-height:70px;resize:vertical;line-height:1.45}
+.edit-field input:focus,.edit-field select:focus,.edit-field textarea:focus{border-color:#6b7280;box-shadow:0 0 0 3px rgba(107,114,128,.12)}
+.edit-field input:disabled,.edit-field select:disabled{background:#eef0f3;color:var(--t3);cursor:not-allowed}
+.edit-error{display:none;padding:8px 10px;background:var(--redpale);border-radius:6px;color:var(--red);font-size:11px}
+.edit-error.show{display:block}
+.edit-modal-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);background:var(--card2)}
+.edit-modal-actions .btnp{background:#374151;color:#fff}
+.edit-modal-actions .btnp:hover{background:#1f2937}
+.app-toast{position:fixed;right:20px;bottom:20px;z-index:1200;max-width:360px;padding:11px 14px;border-radius:9px;background:#374151;color:#fff;font-size:12px;font-weight:500;box-shadow:var(--sh2);opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .2s,transform .2s}
+.app-toast.show{opacity:1;transform:translateY(0)}
+.app-toast.error{background:#991b1b}
+.log-add-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #1a6fc4;border-radius:7px;background:#1a6fc4;color:#fff;padding:7px 11px;font:600 11px 'Inter',sans-serif;cursor:pointer;white-space:nowrap}
+.log-add-btn:hover{background:#155a9e;border-color:#155a9e}
+.log-edit-btn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--blue);padding:5px 8px;font:600 10px 'Inter',sans-serif;cursor:pointer;white-space:nowrap}
+.log-edit-btn:hover{background:var(--bluepale);border-color:rgba(26,111,196,.35)}
+.log-modal{width:min(780px,100%)}
+.log-modal .edit-modal-body{max-height:min(68vh,720px);overflow-y:auto}
+.log-form-section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:13px;border:1px solid var(--border);border-radius:9px;background:var(--card2)}
+.log-form-section[hidden]{display:none}
+.log-form-title{grid-column:1/-1;font-size:10px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.log-span-2{grid-column:1/-1}
+.log-required{color:var(--red)}
+@media(max-width:620px){.log-form-section,.edit-field-grid{grid-template-columns:1fr}.log-span-2,.log-form-title,.edit-section-label{grid-column:1}.log-modal .edit-modal-body{max-height:72vh}}
+
+/* WAIT PAGE */
+.wait-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.wait-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--sh)}
+.wait-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.wait-badge{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.wait-badge.load{background:var(--amberpale);color:var(--amber);border:1px solid rgba(217,119,6,.2)}
+.wait-badge.unload{background:var(--purplepale);color:var(--purple);border:1px solid rgba(124,58,237,.2)}
+.wait-title{font-size:13px;font-weight:600;color:var(--t1)}
+.wait-sub{font-size:11px;color:var(--t3);margin-top:1px}
+.wait-prefix-tabs{display:flex;gap:2px;background:var(--bg);border-radius:8px;padding:2px;width:fit-content;margin-bottom:12px}
+.wait-tab{padding:4px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;color:var(--t3);border:none;background:transparent;font-family:inherit;transition:all .12s}
+.wait-tab.on{background:var(--card);color:var(--blue);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.wtable{width:100%;border-collapse:collapse}
+.wtable th{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding:0 10px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.wtable td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;color:var(--t2)}
+.wtable tr:last-child td{border-bottom:none}
+.wtable tr:hover td{background:var(--bg)}
+.wait-hrs{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.wait-low{background:#e3f5ea;color:#16a34a}
+.wait-mid{background:#fef3e0;color:#d97706}
+.wait-high{background:#fde8e8;color:#dc2626}
+
+/* WAIT PAGE — EQ TOTAL CARDS */
+.wkpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:4px}
+.wkpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--sh)}
+.wkpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.wkpi.amber::before{background:var(--amber)}
+.wkpi.purple::before{background:var(--purple)}
+.wkpi-lbl{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.6px}
+.wkpi-val{font-size:21px;font-weight:600;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1;margin-top:4px}
+.wkpi-sub{font-size:11px;color:var(--t3);margin-top:2px}
+
+/* WAIT PAGE — EQ UNIT CARDS */
+.weq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.weq-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:var(--sh)}
+.weq-head{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.weq-badge{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.weq-badge.tt{background:var(--bluepale);color:var(--blue);border:1px solid rgba(26,111,196,.2)}
+.weq-badge.sv{background:var(--greenpale);color:var(--green);border:1px solid rgba(22,163,74,.2)}
+.weq-badge.ct{background:var(--amberpale);color:var(--amber);border:1px solid rgba(217,119,6,.2)}
+.weq-badge.ltr{background:var(--purplepale);color:var(--purple);border:1px solid rgba(124,58,237,.2)}
+.weq-name{font-size:13px;font-weight:600;color:var(--t1)}
+.weq-proj{font-size:11px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;margin-top:1px}
+.weq-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.weq-stat{background:var(--bg);border-radius:6px;padding:7px 9px}
+.weq-stat-lbl{font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.weq-stat-val{font-size:15px;font-weight:600;color:var(--t1);font-variant-numeric:tabular-nums;margin-top:2px}
+.weq-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:8px}
+.weq-bar-fill{height:4px;border-radius:2px;transition:width .6s ease}
+
+/* WAIT PAGE TABS */
+.wpage-tabs{display:flex;gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:3px;width:fit-content}
+.wpage-tab{padding:7px 20px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--t3);border:none;background:transparent;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:6px}
+.wpage-tab.on{background:var(--amber);color:#fff;font-weight:600;box-shadow:0 2px 5px rgba(217,119,6,.3)}
+.wpage-tab.unload.on{background:var(--purple);box-shadow:0 2px 5px rgba(124,58,237,.3)}
+
+@media(max-width:860px){.wait-grid{grid-template-columns:1fr}.weq-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.weq-grid{grid-template-columns:1fr}}
+.wait-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--sh)}
+.wait-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.wait-badge{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.wait-badge.load{background:var(--amberpale);color:var(--amber);border:1px solid rgba(217,119,6,.2)}
+.wait-badge.unload{background:var(--purplepale);color:var(--purple);border:1px solid rgba(124,58,237,.2)}
+.wait-title{font-size:13px;font-weight:600;color:var(--t1)}
+.wait-sub{font-size:11px;color:var(--t3);margin-top:1px}
+.wait-prefix-tabs{display:flex;gap:2px;background:var(--bg);border-radius:8px;padding:2px;width:fit-content;margin-bottom:12px}
+.wait-tab{padding:4px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;color:var(--t3);border:none;background:transparent;font-family:inherit;transition:all .12s}
+.wait-tab.on{background:var(--card);color:var(--blue);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.wtable{width:100%;border-collapse:collapse}
+.wtable th{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding:0 10px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.wtable td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;color:var(--t2)}
+.wtable tr:last-child td{border-bottom:none}
+.wtable tr:hover td{background:var(--bg)}
+.wait-hrs{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.wait-low{background:#e3f5ea;color:#16a34a}
+.wait-mid{background:#fef3e0;color:#d97706}
+.wait-high{background:#fde8e8;color:#dc2626}
+@media(max-width:860px){.wait-grid{grid-template-columns:1fr}}
+
+/* RESPONSIVE */
+@media(max-width:1000px){.eqgrid{grid-template-columns:1fr}}
+@media(max-width:860px){.cgrid,.twocol{grid-template-columns:1fr}.ccard.wide{grid-column:1}.kgrid{grid-template-columns:repeat(2,1fr)}.sgrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.kgrid{grid-template-columns:1fr}.sgrid{grid-template-columns:1fr}}
+@media(max-width:900px){
+  .filters,body.sidebar-hidden .filters{margin-left:0}
+  .page-stage,.sidebar-hidden .page-stage{margin-left:0}
+  .side-nav{width:min(280px,86vw);padding:16px;box-shadow:6px 0 20px rgba(15,23,42,.12)}
+  .sidebar-hidden .side-nav{transform:translateX(-105%)}
+  .app-shell:not(.sidebar-hidden) .side-scrim{display:block;position:fixed;inset:56px 0 0 0;z-index:80;border:0;background:rgba(15,23,42,.34);cursor:pointer}
+  .main{padding-top:16px}
+}
+@media(max-width:560px){.page-search{min-width:100%;width:100%}.page-tools{width:100%}.page-select{flex:1}.page-title{font-size:19px}.edit-field-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.nav{padding:0 12px;gap:8px}.brand-name{display:none}.brand .badge{display:none}.notif-panel{position:fixed;top:62px;left:12px;right:12px;width:auto;max-height:calc(100vh - 74px)}.notif-list{max-height:calc(100vh - 135px)}}
+.demo-logo{display:inline-flex;align-items:center;justify-content:center;width:36px;height:28px;border-radius:7px;background:#1a3a6b;color:white;font-weight:800;letter-spacing:.5px}.demo-disclosure{background:#e8f1fc;color:#24496f;text-align:center;padding:8px 12px;font-size:11px;border-bottom:1px solid #d4e4f8}
+</style>
+</head>
+<body>
+
+<div id="prog"></div>
+<div class="demo-disclosure"><strong>PUBLIC PORTFOLIO DEMO</strong> · All records, sites, identifiers and metrics are fictional. Changes are session-only; no company systems are connected.</div>
+
+<nav class="nav">
+  <button type="button" class="side-toggle" id="sideToggle" onclick="toggleSidebar()" aria-controls="sideNav" aria-expanded="true" aria-label="Hide navigation menu" title="Hide sidebar">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+  <div class="brand">
+    <!-- Generic portfolio demo logo -->
+    <span class="demo-logo" aria-hidden="true">FO</span>
+    <span class="brand-name">FleetOps Monitoring</span>
+    <span class="badge">DEMO</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="clockpill">
+    <span class="pulse"></span>
+    <span id="clock">--:--:-- --</span>
+  </div>
+  <div class="notif-wrap" id="notifWrap">
+    <button type="button" class="notif-btn" id="notifBtn" onclick="toggleNotifications(event)" aria-controls="notifPanel" aria-expanded="false" aria-label="Open notifications">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+      <span class="notif-count" id="notifCount" aria-live="polite"></span>
+    </button>
+    <div class="notif-panel" id="notifPanel" role="dialog" aria-label="Fleet notifications">
+      <div class="notif-head">
+        <div><div class="notif-title">Notifications</div><div class="notif-summary" id="notifSummary">Loading alerts...</div></div>
+        <button type="button" class="notif-close" onclick="closeNotifications();document.getElementById('notifBtn').focus()" aria-label="Close notifications">&times;</button>
+      </div>
+      <div class="notif-list apanel" id="alertsEl"><div class="tload"><div class="msp"></div> Loading alerts...</div></div>
+    </div>
+  </div>
+</nav>
+
+<div class="filters">
+  <div style="display:flex;align-items:center;gap:7px">
+    <span class="flabel">Equipment</span>
+    <div class="eq-multi" id="eqMulti">
+      <button type="button" class="eq-multi-trigger" id="eqMultiTrigger" onclick="toggleEquipmentMenu(event)" aria-haspopup="listbox" aria-expanded="false">
+        <span class="eq-multi-label" id="eqMultiLabel">All Units</span>
+        <span style="display:flex;align-items:center;gap:6px"><span class="eq-multi-count" id="eqMultiCount"></span><span aria-hidden="true">▾</span></span>
+      </button>
+      <div class="eq-multi-panel" id="eqMultiPanel">
+        <div class="eq-multi-tools"><span class="eq-multi-hint">Select one or more units</span><button type="button" class="eq-multi-all" onclick="selectAllEquipment(event)">All units</button></div>
+        <div class="eq-multi-options" id="eqMultiOptions" role="listbox" aria-multiselectable="true"></div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:7px">
+    <span class="flabel">From</span>
+    <input type="date" id="dFrom"/>
+  </div>
+  <div style="display:flex;align-items:center;gap:7px">
+    <span class="flabel">To</span>
+    <input type="date" id="dTo"/>
+  </div>
+  <button class="btn btnp" id="applyBtn" onclick="loadData()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    Apply
+  </button>
+  <div class="fright">
+    <button class="btn btng" onclick="resetFilters()">Reset</button>
+    <button class="btn btng" onclick="doExport()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Export
+    </button>
+  </div>
+</div>
+
+<div class="app-shell" id="appShell">
+  <aside class="side-nav" id="sideNav" aria-label="Dashboard pages">
+    <div class="side-label">Dashboard</div>
+    <button class="side-nav-btn on" data-page="dashboard" onclick="switchPage('dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Overview</button>
+    <button class="side-nav-btn" data-page="evdtr" onclick="switchPage('evdtr')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg>EVDTR Log</button>
+    <div class="side-divider"></div>
+    <div class="side-label">Activity Data</div>
+    <button class="side-nav-btn" data-page="travel" onclick="switchPage('travel')"><span class="side-nav-mark" aria-hidden="true">TR</span>Travel</button>
+    <button class="side-nav-btn" data-page="utilize" onclick="switchPage('utilize')"><span class="side-nav-mark" aria-hidden="true">UT</span>Utilize</button>
+    <button class="side-nav-btn" data-page="idle" onclick="switchPage('idle')"><span class="side-nav-mark" aria-hidden="true">ID</span>Idle</button>
+    <button class="side-nav-btn" data-page="breakdown" onclick="switchPage('breakdown')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m14.7 6.3 3-3 3 3-3 3M4 20l7.5-7.5M5 4l15 15M3 3l4 1 1 4"/></svg>Breakdown</button>
+    <div class="side-divider"></div>
+    <div class="side-label">Analysis</div>
+    <button class="side-nav-btn" data-page="outliers" onclick="switchPage('outliers')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Outlier Review</button>
+    <button class="side-nav-btn" data-page="routes" onclick="switchPage('routes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h3a3 3 0 0 0 3-3V9a3 3 0 0 1 3-3"/></svg>Avg Travel / Route</button>
+    <button class="side-nav-btn" data-page="wait" onclick="switchPage('wait')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Wait Monitor</button>
+  </aside>
+  <button type="button" class="side-scrim" onclick="setSidebarHidden(true)" aria-label="Close navigation menu"></button>
+  <div class="page-stage">
+    <div class="main" id="app">
+      <!-- active page renders here -->
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="outlierEditModal" role="dialog" aria-modal="true" aria-labelledby="outlierEditTitle" onclick="if(event.target===this)closeOutlierEditor()">
+  <div class="edit-modal">
+    <div class="edit-modal-head"><div><div class="edit-modal-title" id="outlierEditTitle">Correct Meter Reading</div><div class="edit-modal-sub">This updates the verified source row and records the change in OutlierEditLog.</div></div><button type="button" class="modal-close" onclick="closeOutlierEditor()" aria-label="Close">×</button></div>
+    <div class="edit-modal-body">
+      <div class="edit-record-meta" id="editRecordMeta"></div>
+      <div class="edit-reason" id="editReason"></div>
+      <div class="edit-guidance" id="editAction"></div>
+      <div class="edit-field-grid" id="editPrimaryFields">
+        <div class="edit-field"><label for="editStartReading" id="editStartLabel">Start reading</label><input id="editStartReading" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="edit-field"><label for="editEndReading" id="editEndLabel">End reading</label><input id="editEndReading" type="text" inputmode="decimal" autocomplete="off"></div>
+      </div>
+      <div class="edit-field-grid" id="editDistanceFields" hidden>
+        <div class="edit-section-label">Odometer — determines Distance Travelled</div>
+        <div class="edit-field"><label for="editOdoStart">Start ODO</label><input id="editOdoStart" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="edit-field"><label for="editOdoEnd">End ODO</label><input id="editOdoEnd" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="edit-section-label">Hour meter — verify with the same EVDTR</div>
+        <div class="edit-field"><label for="editSmrStart">Start SMR</label><input id="editSmrStart" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="edit-field"><label for="editSmrEnd">End SMR</label><input id="editSmrEnd" type="text" inputmode="decimal" autocomplete="off"></div>
+      </div>
+      <div class="edit-field-grid" id="editTimeFields" hidden>
+        <div class="edit-section-label">Trip time — overnight arrivals are supported</div>
+        <div class="edit-field"><label for="editDeparture">Departure</label><input id="editDeparture" type="time" step="60" autocomplete="off"></div>
+        <div class="edit-field"><label for="editArrival">Arrival</label><input id="editArrival" type="time" step="60" autocomplete="off"></div>
+      </div>
+      <label class="edit-verify"><input type="checkbox" id="editVerified"> <span>I checked these values against the signed/source EVDTR and confirm I am correcting the identified source row.</span></label>
+      <div class="edit-error" id="editError"></div>
+    </div>
+    <div class="edit-modal-actions"><button type="button" class="btn btng" onclick="closeOutlierEditor()">Cancel</button><button type="button" class="btn btnp" id="saveOutlierBtn" onclick="saveOutlierEdit()">Save correction</button></div>
+  </div>
+</div>
+<div class="modal-backdrop" id="logEditorModal" role="dialog" aria-modal="true" aria-labelledby="logEditorTitle" onclick="if(event.target===this)closeLogEditor()">
+  <div class="edit-modal log-modal">
+    <form id="logEditorForm" onsubmit="saveLogEditor(event)">
+      <div class="edit-modal-head"><div><div class="edit-modal-title" id="logEditorTitle">Add EVDTR Log</div><div class="edit-modal-sub" id="logEditorSubtitle">Add a verified entry to its source activity sheet. Every save is recorded in EVDTRLogEditHistory.</div></div><button type="button" class="modal-close" onclick="closeLogEditor()" aria-label="Close">&times;</button></div>
+      <div class="edit-modal-body">
+        <div class="edit-record-meta" id="logEditorMeta">Use the values from the signed/manual EVDTR.</div>
+        <div class="log-form-section">
+          <div class="log-form-title">Record identity</div>
+          <div class="edit-field"><label for="logEditType">Activity type <span class="log-required">*</span></label><select id="logEditType" required onchange="logEditorTypeChanged()"><option>Travel</option><option>Utilize</option><option>Idle</option><option>Breakdown</option></select></div>
+          <div class="edit-field"><label for="logEditDate">EVDTR date <span class="log-required">*</span></label><input id="logEditDate" type="date" required></div>
+          <div class="edit-field"><label for="logEditEvdtr">EVDTR number <span class="log-required">*</span></label><input id="logEditEvdtr" type="text" maxlength="80" autocomplete="off" required></div>
+          <div class="edit-field"><label for="logEditEquipment">Equipment number <span class="log-required">*</span></label><input id="logEditEquipment" type="text" maxlength="80" list="logEquipmentList" autocomplete="off" required></div>
+        </div>
+        <div class="log-form-section" id="logTravelFields">
+          <div class="log-form-title">Travel route and time</div>
+          <div class="edit-field"><label for="logOriginCode">Origin project code</label><input id="logOriginCode" type="text" maxlength="120"></div>
+          <div class="edit-field"><label for="logOriginDescription">Origin description</label><input id="logOriginDescription" type="text" maxlength="250"></div>
+          <div class="edit-field"><label for="logDestinationCode">Destination project code</label><input id="logDestinationCode" type="text" maxlength="120"></div>
+          <div class="edit-field"><label for="logDestinationDescription">Destination description</label><input id="logDestinationDescription" type="text" maxlength="250"></div>
+          <div class="edit-field"><label for="logDeparture">Departure</label><input id="logDeparture" type="time" step="60"></div>
+          <div class="edit-field"><label for="logArrival">Arrival</label><input id="logArrival" type="time" step="60"></div>
+          <div class="edit-field log-span-2"><label for="logRemarks">Remarks</label><textarea id="logRemarks" maxlength="1000" placeholder="Optional source remarks"></textarea></div>
+        </div>
+        <div class="log-form-section" id="logOtherFields" hidden>
+          <div class="log-form-title">Activity details</div>
+          <div class="edit-field log-span-2"><label for="logDescription">Description <span class="log-required">*</span></label><textarea id="logDescription" maxlength="1000" placeholder="Utilization, idle, or breakdown description"></textarea></div>
+          <div class="edit-field"><label for="logStartTime">Start time</label><input id="logStartTime" type="time" step="60"></div>
+          <div class="edit-field"><label for="logEndTime">End time</label><input id="logEndTime" type="time" step="60"></div>
+        </div>
+        <div class="log-form-section">
+          <div class="log-form-title">Meter readings</div>
+          <div class="edit-field"><label for="logStartOdo">Start ODO</label><input id="logStartOdo" type="number" min="0" step="any" inputmode="decimal"></div>
+          <div class="edit-field"><label for="logEndOdo">End ODO</label><input id="logEndOdo" type="number" min="0" step="any" inputmode="decimal"></div>
+          <div class="edit-field"><label for="logStartSmr">Start SMR</label><input id="logStartSmr" type="number" min="0" step="any" inputmode="decimal"></div>
+          <div class="edit-field"><label for="logEndSmr">End SMR</label><input id="logEndSmr" type="number" min="0" step="any" inputmode="decimal"></div>
+        </div>
+        <div class="edit-field"><label for="logEditReason">Reason for add/correction <span class="log-required">*</span></label><textarea id="logEditReason" maxlength="1000" minlength="5" required placeholder="Example: Dashboard entry did not match signed EVDTR no. 12345"></textarea></div>
+        <label class="edit-verify"><input type="checkbox" id="logEditVerified"> <span>I checked this complete entry against the signed/manual EVDTR and confirm the source sheet should be added or corrected.</span></label>
+        <div class="edit-error" id="logEditError"></div>
+      </div>
+      <div class="edit-modal-actions"><button type="button" class="btn btng" onclick="closeLogEditor()">Cancel</button><button type="submit" class="btn btnp" id="saveLogBtn">Save log</button></div>
+    </form>
+  </div>
+</div>
+<datalist id="logEquipmentList"></datalist>
+<div class="app-toast" id="appToast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+// ── STATE ──────────────────────────────────────
+let fleetData = null;
+let _lastQuery = null;
+let _initialDataLoad = true;
+const charts = {};
+let _equipmentOptions = [];
+let _selectedEquipment = new Set(); // empty means All Units
+let _sidebarHidden = false;
+const _clientFleetCache = new Map();
+const CLIENT_CACHE_MS = 30000;
+
+function clientFleetCacheKey(params){
+  const equipment=Array.isArray(params.equipment)?params.equipment.slice().map(String).sort():String(params.equipment||'ALL');
+  return JSON.stringify({equipment,startDate:params.startDate||'',endDate:params.endDate||'',latest:!!params.useLatestAvailable});
+}
+
+function rememberClientFleetData(key,data){
+  if(_clientFleetCache.size>=8)_clientFleetCache.delete(_clientFleetCache.keys().next().value);
+  _clientFleetCache.set(key,{time:Date.now(),data});
+}
+
+function clearFleetClientCache(){_clientFleetCache.clear();}
+
+function setSidebarHidden(hidden){
+  _sidebarHidden=!!hidden;
+  const shell=document.getElementById('appShell');
+  const sideNav=document.getElementById('sideNav');
+  const toggle=document.getElementById('sideToggle');
+  if(shell)shell.classList.toggle('sidebar-hidden',_sidebarHidden);
+  document.body.classList.toggle('sidebar-hidden',_sidebarHidden);
+  if(sideNav){
+    sideNav.setAttribute('aria-hidden',_sidebarHidden?'true':'false');
+    sideNav.inert=_sidebarHidden;
+  }
+  if(toggle){
+    toggle.setAttribute('aria-expanded',_sidebarHidden?'false':'true');
+    toggle.setAttribute('aria-label',_sidebarHidden?'Show navigation menu':'Hide navigation menu');
+    toggle.title=_sidebarHidden?'Show sidebar':'Hide sidebar';
+  }
+}
+
+function toggleSidebar(){
+  setSidebarHidden(!_sidebarHidden);
+  if(window.innerWidth>900){
+    try{localStorage.setItem('evdtrSidebarHidden',_sidebarHidden?'1':'0');}catch(_error){}
+  }
+}
+
+function h(value){
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toggleEquipmentMenu(event){
+  if(event) event.stopPropagation();
+  const root=document.getElementById('eqMulti');
+  const open=!root.classList.contains('open');
+  root.classList.toggle('open',open);
+  document.getElementById('eqMultiTrigger').setAttribute('aria-expanded',open?'true':'false');
+}
+
+function closeEquipmentMenu(){
+  const root=document.getElementById('eqMulti');
+  if(root) root.classList.remove('open');
+  const trigger=document.getElementById('eqMultiTrigger');
+  if(trigger) trigger.setAttribute('aria-expanded','false');
+}
+
+function selectAllEquipment(event){
+  if(event) event.stopPropagation();
+  _selectedEquipment.clear();
+  renderEquipmentOptions();
+}
+
+function setEquipmentSelected(equipment,checked){
+  if(checked) _selectedEquipment.add(equipment);
+  else _selectedEquipment.delete(equipment);
+  renderEquipmentOptions();
+}
+
+function updateEquipmentLabel(){
+  const label=document.getElementById('eqMultiLabel');
+  const count=document.getElementById('eqMultiCount');
+  const selected=Array.from(_selectedEquipment);
+  if(!selected.length || selected.length>=_equipmentOptions.length){
+    label.textContent='All Units';
+    count.classList.remove('show');
+    count.textContent='';
+  }else{
+    label.textContent=selected.length===1?selected[0]:selected.slice(0,2).join(', ')+(selected.length>2?'…':'');
+    count.textContent=selected.length;
+    count.classList.add('show');
+  }
+}
+
+function renderEquipmentOptions(){
+  const list=document.getElementById('eqMultiOptions');
+  if(!list)return;
+  list.innerHTML='';
+  const all=document.createElement('label');
+  all.className='eq-multi-option all';
+  const allBox=document.createElement('input');
+  allBox.type='checkbox';
+  allBox.checked=!_selectedEquipment.size;
+  allBox.addEventListener('change',selectAllEquipment);
+  all.appendChild(allBox);
+  all.appendChild(document.createTextNode('All Units'));
+  list.appendChild(all);
+  _equipmentOptions.forEach(eq=>{
+    const row=document.createElement('label');
+    row.className='eq-multi-option';
+    const box=document.createElement('input');
+    box.type='checkbox';
+    box.checked=_selectedEquipment.has(eq);
+    box.addEventListener('change',()=>setEquipmentSelected(eq,box.checked));
+    row.appendChild(box);
+    row.appendChild(document.createTextNode(eq));
+    list.appendChild(row);
+  });
+  updateEquipmentLabel();
+}
+
+function syncEquipmentOptions(equipment){
+  _equipmentOptions=Array.from(new Set((equipment||[]).map(eq=>String(eq||'').trim()).filter(Boolean))).sort();
+  const valid=new Set(_equipmentOptions);
+  _selectedEquipment=new Set(Array.from(_selectedEquipment).filter(eq=>valid.has(eq)));
+  renderEquipmentOptions();
+}
+
+function getEquipmentFilterValue(){
+  const selected=Array.from(_selectedEquipment);
+  return !selected.length || selected.length>=_equipmentOptions.length ? 'ALL' : selected;
+}
+
+document.addEventListener('click',event=>{
+  const root=document.getElementById('eqMulti');
+  if(root&&!root.contains(event.target))closeEquipmentMenu();
+  const notifications=document.getElementById('notifWrap');
+  if(notifications&&!notifications.contains(event.target))closeNotifications();
+});
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  closeEquipmentMenu();
+  if(closeNotifications())return;
+  if(document.getElementById('logEditorModal')?.classList.contains('open'))closeLogEditor();
+  else if(document.getElementById('outlierEditModal')?.classList.contains('open'))closeOutlierEditor();
+  else if(!_sidebarHidden)setSidebarHidden(true);
+});
+
+function toggleNotifications(event){
+  if(event)event.stopPropagation();
+  const root=document.getElementById('notifWrap');
+  const button=document.getElementById('notifBtn');
+  const open=!root.classList.contains('open');
+  root.classList.toggle('open',open);
+  button.setAttribute('aria-expanded',open?'true':'false');
+  button.setAttribute('aria-label',open?'Close notifications':'Open notifications');
+}
+
+function closeNotifications(){
+  const root=document.getElementById('notifWrap');
+  const wasOpen=!!root?.classList.contains('open');
+  if(root)root.classList.remove('open');
+  const button=document.getElementById('notifBtn');
+  if(button){button.setAttribute('aria-expanded','false');button.setAttribute('aria-label','Open notifications');}
+  return wasOpen;
+}
+
+// ── PAGE SWITCHING ──────────────────────────────
+let _activePage = 'dashboard';
+function switchPage(page){
+  _activePage = page;
+  document.querySelectorAll('.side-nav-btn').forEach(btn=>btn.classList.toggle('on',btn.dataset.page===page));
+  closeEquipmentMenu();
+  if(window.innerWidth<=900)setSidebarHidden(true);
+  if(fleetData) renderActivePage(); else showSkeleton();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function renderActivePage(){
+  if(!fleetData)return;
+  if(_activePage!=='dashboard'){
+    Object.values(charts).forEach(chart=>chart&&chart.destroy&&chart.destroy());
+    Object.keys(charts).forEach(key=>delete charts[key]);
+  }
+  const renderers={
+    dashboard:()=>render(fleetData),
+    evdtr:()=>renderEvdtrLogPage(fleetData),
+    travel:()=>renderActivityPage(fleetData,'Travel'),
+    utilize:()=>renderActivityPage(fleetData,'Utilize'),
+    idle:()=>renderActivityPage(fleetData,'Idle'),
+    outliers:()=>renderOutlierPage(fleetData),
+    routes:()=>renderRoutesPage(fleetData),
+    breakdown:()=>renderBreakdownPage(fleetData),
+    wait:()=>renderWaitPage(fleetData.waitData||{load:{},unload:{}})
+  };
+  (renderers[_activePage]||renderers.dashboard)();
+}
+
+// ── BOOT ───────────────────────────────────────
+(function boot(){
+  let savedSidebarState=null;
+  try{savedSidebarState=localStorage.getItem('evdtrSidebarHidden');}catch(_error){}
+  setSidebarHidden(window.innerWidth<=900||savedSidebarState==='1');
+  document.getElementById('dTo').value='';
+  document.getElementById('dFrom').value='';
+  setInterval(() => {
+    document.getElementById('clock').textContent =
+      new Date().toLocaleString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+  }, 1000);
+  showSkeleton();
+  requestAnimationFrame(fetchData);
+})();
+
+function fmt(d){ return d.toISOString().split('T')[0]; }
+
+// ── PROGRESS BAR ───────────────────────────────
+let _pt = null, _pw = 0;
+function pbStart(){
+  const p = document.getElementById('prog');
+  _pw = 0; p.style.width='0'; p.classList.add('on');
+  clearInterval(_pt);
+  _pt = setInterval(()=>{ _pw = Math.min(_pw + Math.random()*10, 85); p.style.width=_pw+'%'; }, 180);
+}
+function pbDone(){
+  clearInterval(_pt);
+  const p = document.getElementById('prog');
+  p.style.width='100%';
+  setTimeout(()=>{ p.style.width='0'; p.classList.remove('on'); }, 400);
+}
+
+// ── FETCH ──────────────────────────────────────
+function fetchData(){
+  const btn = document.getElementById('applyBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin .7s linear infinite"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg> Loading…';
+  pbStart();
+
+  const params = {
+    equipment: getEquipmentFilterValue(),
+    startDate: document.getElementById('dFrom').value,
+    endDate:   document.getElementById('dTo').value,
+    useLatestAvailable: _initialDataLoad
+  };
+  _lastQuery = params;
+  const localCacheKey=clientFleetCacheKey(params);
+  const localHit=_clientFleetCache.get(localCacheKey);
+  if(localHit&&Date.now()-localHit.time<CLIENT_CACHE_MS){
+    onData(localHit.data);
+    return;
+  }
+  if(localHit)_clientFleetCache.delete(localCacheKey);
+
+  // Standalone portfolio demo: synthetic data only.
+  onData(demoFilteredData(params));
+}
+
+function loadData(){ closeEquipmentMenu(); showSkeleton(); requestAnimationFrame(fetchData); }
+
+function resetBtn(){
+  const btn = document.getElementById('applyBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Apply';
+}
+
+function resetFilters(){
+  _selectedEquipment.clear();
+  renderEquipmentOptions();
+  document.getElementById('dTo').value='';
+  document.getElementById('dFrom').value='';
+  _initialDataLoad=true;
+  loadData();
+}
+
+// ── DATA HANDLERS ──────────────────────────────
+function onData(d){
+  pbDone(); resetBtn();
+  if(!d || !d.success){ onErr(d && d.error); return; }
+  document.getElementById('app').setAttribute('aria-busy','false');
+  _initialDataLoad=false;
+  if(d.appliedRange){
+    document.getElementById('dFrom').value=d.appliedRange.startDate||'';
+    document.getElementById('dTo').value=d.appliedRange.endDate||'';
+    _lastQuery={...(_lastQuery||{}),startDate:d.appliedRange.startDate||'',endDate:d.appliedRange.endDate||''};
+  }
+  fleetData = d;
+
+  syncEquipmentOptions(d.equipment||[]);
+  updateNotifications(d.alerts||[]);
+  renderActivePage();
+}
+
+function onErr(msg){
+  pbDone(); resetBtn();
+  document.getElementById('app').setAttribute('aria-busy','false');
+  document.getElementById('app').innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:80px 0">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      <div style="font-size:15px;font-weight:600;color:#dc2626">Could not load data</div>
+      <div style="font-size:13px;color:var(--t3);text-align:center;max-width:360px">${msg||'Check your Google Sheets names: Travel, Utilize, Idle, Breakdown'}</div>
+      <button class="btn btnp" onclick="loadData()">Try Again</button>
+    </div>`;
+}
+
+// ── SKELETON ────────────────────────────────────
+function showSkeleton(){
+  Object.values(charts).forEach(c=>c&&c.destroy&&c.destroy());
+  Object.keys(charts).forEach(k=>delete charts[k]);
+  const app=document.getElementById('app');
+  app.setAttribute('aria-busy','true');
+  const line=(width='100%',height=10)=>`<div class="sk" style="width:${width};height:${height}px"></div>`;
+  const banner=(title,copy)=>`<div class="loading-banner" role="status" aria-live="polite"><div class="msp" aria-hidden="true"></div><div><div class="loading-title">${h(title)}</div><div class="loading-copy">${h(copy)}</div></div></div>`;
+  const metrics=count=>`<div class="loading-metrics">${Array(count).fill(0).map(()=>`<div class="loading-metric">${line('58%',9)}<div style="height:13px"></div>${line('38%',25)}<div style="height:10px"></div>${line('72%',8)}</div>`).join('')}</div>`;
+  const table=(cols=6,rows=6)=>`<div class="loading-table" style="--load-cols:${cols}"><div class="loading-table-head">${Array(cols).fill(0).map((_,i)=>line(i===0?'68%':'55%',8)).join('')}</div>${Array(rows).fill(0).map((_,r)=>`<div class="loading-table-row">${Array(cols).fill(0).map((_,c)=>line(c===0?'82%':((r+c)%3===0?'65%':'48%'),10)).join('')}</div>`).join('')}</div>`;
+  const panels=(count=2)=>`<div class="loading-panel-grid">${Array(count).fill(0).map((_,index)=>`<div class="loading-panel">${line(index?'42%':'55%',11)}<div style="height:24px"></div>${Array(5).fill(0).map((__,row)=>`<div class="loading-site-row">${line((82-row*7)+'%',10)}${line('100%',5)}</div>`).join('')}</div>`).join('')}</div>`;
+  const pageNames={dashboard:'Overview',evdtr:'EVDTR Log',travel:'Travel',utilize:'Utilize',idle:'Idle',outliers:'Outlier Review',routes:'Average Travel per Route',breakdown:'Breakdown',wait:'Wait Monitor'};
+  const page=_activePage||'dashboard';
+  const title=pageNames[page]||'Dashboard';
+
+  if(page==='dashboard'){
+    app.innerHTML=`
+      ${banner('Loading Overview','Refreshing fleet KPIs, status, trends, and site activity.')}
+      <div class="kgrid">${Array(6).fill(0).map(()=>`<div class="kcard" style="gap:10px"><div class="sk" style="width:32px;height:32px;border-radius:8px"></div>${line('48%',9)}${line('36%',26)}${line('68%',9)}</div>`).join('')}</div>
+      <div class="sgrid">${Array(4).fill(0).map(()=>`<div class="scard" style="gap:9px">${line('58%',10)}${line('28%',22)}${line('52%',9)}${line('100%',4)}</div>`).join('')}</div>
+      <div class="ccard wide">${line('30%',12)}<div style="height:16px"></div><div class="sk" style="height:240px;border-radius:8px"></div></div>
+      <div class="cgrid"><div class="ccard">${line('42%',12)}<div style="height:18px"></div><div class="sk" style="height:190px;width:190px;border-radius:50%;margin:0 auto"></div></div><div class="ccard">${line('45%',12)}<div style="height:20px"></div>${Array(6).fill(0).map((_,i)=>`<div class="loading-site-row">${line((88-i*7)+'%',10)}${line('100%',5)}</div>`).join('')}</div></div>`;
+    return;
+  }
+
+  const metricCounts={evdtr:5,travel:5,utilize:5,idle:5,outliers:4,routes:3,breakdown:4,wait:5};
+  const tableColumns={evdtr:10,travel:8,utilize:8,idle:8,routes:5,breakdown:7};
+  let body='';
+  if(page==='outliers'){
+    body=`${metrics(metricCounts[page])}<div class="loading-panel" style="min-height:120px">${line('22%',11)}<div style="height:22px"></div>${line('94%',10)}<div style="height:12px"></div>${line('82%',10)}</div>${panels(2)}`;
+  }else if(page==='wait'){
+    body=`${metrics(metricCounts[page])}${panels(2)}${table(7,5)}`;
+  }else{
+    body=`${metrics(metricCounts[page]||4)}${table(tableColumns[page]||7,7)}`;
+  }
+  app.innerHTML=`${banner('Loading '+title,'Applying the selected equipment and date filters.')}${body}`;
+}
+
+// ── RENDER ─────────────────────────────────────
+function render(d){
+  const k = d.kpis||{};
+  const th = (k.totalUtilizeHrs||0)+(k.totalIdleHrs||0)+(k.totalTravelHrs||0)+(k.totalBreakdownHrs||0);
+
+  document.getElementById('app').innerHTML = `
+    <!-- KPI PANEL -->
+    <div>
+      <div class="shdr"><div class="stitle">Fleet KPIs</div><span style="font-size:11px;color:var(--t3)">${recCounts(d)}</span></div>
+      <div class="kgrid">
+        ${kc('Total Fleet','blue','M3 12h3.6l1.2-1.2A1 1 0 0 1 8.5 10.5h7a1 1 0 0 1 .7.3L17.4 12H21a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z',k.totalFleet,'units',k.activeUnits+' active')}
+        ${kc('Availability','green','M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',k.availabilityRate+'%','',rateLabel(k.availabilityRate))}
+        ${kc('Utilization','blue','M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z',k.utilizationRate+'%','',r1(k.totalUtilizeHrs)+' hrs worked')}
+        ${kc('Idle Rate','amber','M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',k.idleRate+'%','',r1(k.totalIdleHrs)+' hrs idle')}
+        ${kc('Travel','teal','M13 16V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1m0 0a2 2 0 0 0 4 0m-4 0h4m6 0h1a1 1 0 0 0 1-1V9.5L18 7h-5v9m0 0a2 2 0 0 0 4 0',k.travelTrips,'trips',r1(k.totalTravelHrs)+' hrs · '+Math.round(k.totalDistance||0)+' km')}
+        ${kc('Breakdown','red','M12 9v2m0 4h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',k.breakdownRate+'%','',k.breakdownEvents+' events · '+r1(k.totalBreakdownHrs)+' hrs')}
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div>
+      <div class="shdr"><div class="stitle">Fleet Status</div></div>
+      <div class="sgrid">
+        ${sc('Operational','#16a34a',k.utilizingUnits,k.totalFleet,'Actively working')}
+        ${sc('Idle / Standby','#d97706',k.idleUnits,k.totalFleet,'Available, not working')}
+        ${sc('Traveling','#1a6fc4',k.travelingUnits,k.totalFleet,'Moving between sites')}
+        ${sc('Breakdown','#dc2626',k.breakdownUnits,k.totalFleet,'Under repair')}
+      </div>
+    </div>
+
+    <!-- TREND CHART -->
+    <div class="ccard wide">
+      <div class="shdr" style="margin-bottom:10px">
+        <div class="stitle">Utilization Trends — Hours by Day</div>
+        <div class="tabs">
+          <button class="tab on" onclick="tabSwitch(this,'all')">All</button>
+          <button class="tab" onclick="tabSwitch(this,'utilize')">Utilize</button>
+          <button class="tab" onclick="tabSwitch(this,'idle')">Idle</button>
+          <button class="tab" onclick="tabSwitch(this,'travel')">Travel</button>
+        </div>
+      </div>
+      <div class="leg">${leg()}</div>
+      <div class="cwrap" style="height:240px">
+        <div class="covl" id="trendOvl"><div class="msp"></div><span class="covlabel">Building chart…</span></div>
+        <canvas id="trendC"></canvas>
+      </div>
+    </div>
+
+    <!-- DONUT + SITES -->
+    <div class="cgrid">
+      <div class="ccard">
+        <div class="shdr" style="margin-bottom:10px"><div class="stitle">Time Distribution</div></div>
+        <div class="leg" id="donutLeg"></div>
+        <div class="cwrap" style="height:210px">
+          <div class="covl" id="donutOvl"><div class="msp"></div><span class="covlabel">Computing…</span></div>
+          <canvas id="donutC"></canvas>
+        </div>
+      </div>
+      <div class="ccard">
+        <div class="shdr" style="margin-bottom:10px"><div class="stitle">Top Sites by Activity</div></div>
+        <div class="siterows" id="siteRows"><div class="tload"><div class="msp"></div> Loading sites…</div></div>
+      </div>
+    </div>
+
+  `;
+
+  // render progressively
+  requestAnimationFrame(()=>{
+    buildTrend(d.trends||[]);
+    buildDonut(k,th);
+    buildSites(d.siteData||[]);
+    buildAlerts(d.alerts||[]);
+  });
+}
+
+// ── DEDICATED REPORT PAGES ──────────────────────
+function pageHeading(title,subtitle){
+  return `<div class="page-heading"><div><div class="page-title">${h(title)}</div><div class="page-subtitle">${h(subtitle)}</div></div><div style="font-size:11px;color:var(--t3);padding-top:5px">Filters above apply to this page</div></div>`;
+}
+
+function pageMetric(label,value,sub,color){
+  return `<div class="page-metric" style="border-top:3px solid ${color||'var(--blue)'}"><div class="page-metric-label">${h(label)}</div><div class="page-metric-value">${h(value)}</div><div class="page-metric-sub">${h(sub||'')}</div></div>`;
+}
+
+let _evdtrRows=[];
+let _logState={page:1,size:25,query:'',type:'ALL'};
+
+function renderEvdtrLogPage(d){
+  _evdtrRows=d.evdtrLog||d.recentRecords||[];
+  _logState={page:1,size:25,query:'',type:'ALL'};
+  const counts=d.rawCounts||{};
+  const utilizeSheetCount=(counts.utilize||0)+(counts.waitLoad||0)+(counts.waitUnload||0);
+  document.getElementById('app').innerHTML=`
+    ${pageHeading('EVDTR Log','Complete activity register for the selected equipment and date range.')}
+    <div class="page-metrics">
+      ${pageMetric('All Records',_evdtrRows.length,'Across four activity sheets','var(--blue)')}
+      ${pageMetric('Travel',counts.travel||0,'Travel entries','var(--teal)')}
+      ${pageMetric('Utilize',utilizeSheetCount,'Includes waiting entries','var(--green)')}
+      ${pageMetric('Idle',counts.idle||0,'Idle entries','var(--amber)')}
+      ${pageMetric('Breakdown',counts.breakdown||0,'Repair entries','var(--red)')}
+    </div>
+    <div class="tcard">
+      <div class="shdr" style="margin-bottom:12px;align-items:flex-end;gap:12px;flex-wrap:wrap">
+        <div><div class="stitle">Filtered EVDTR Records</div><div style="font-size:11px;color:var(--t3);margin-top:4px">Search by EVDTR number, equipment, date, or description</div></div>
+        <div class="page-tools">
+          <button type="button" class="log-add-btn" onclick="openLogEditor()"><span aria-hidden="true">+</span> Add log</button>
+          <input class="page-search" id="logSearch" type="search" placeholder="Search records…" oninput="logSearchChanged(this.value)">
+          <select class="page-select" id="logType" onchange="logTypeChanged(this.value)"><option value="ALL">All types</option><option>Travel</option><option>Utilize</option><option>Idle</option><option>Breakdown</option></select>
+          <select class="page-select" id="logSize" onchange="logSizeChanged(this.value)"><option value="25">25 rows</option><option value="50">50 rows</option><option value="100">100 rows</option></select>
+        </div>
+      </div>
+      <div class="tscroll"><table>
+        <thead><tr><th>Type</th><th>EVDTR No.</th><th>Equipment</th><th>Date</th><th>Description / Route</th><th>Hours</th><th>Distance</th><th>ODO Start → End</th><th>SMR Start → End</th><th>Action</th></tr></thead>
+        <tbody id="logTbody"></tbody>
+      </table></div>
+      <div class="pager"><div class="pager-info" id="logPagerInfo"></div><div class="pager-buttons"><button class="pager-btn" id="logPrev" onclick="logPageMove(-1)">Previous</button><button class="pager-btn" id="logNext" onclick="logPageMove(1)">Next</button></div></div>
+    </div>`;
+  refreshEvdtrLog();
+}
+
+function logSearchChanged(value){_logState.query=String(value||'').trim().toLowerCase();_logState.page=1;refreshEvdtrLog();}
+function logTypeChanged(value){_logState.type=value||'ALL';_logState.page=1;refreshEvdtrLog();}
+function logSizeChanged(value){_logState.size=Number(value)||25;_logState.page=1;refreshEvdtrLog();}
+function logPageMove(delta){_logState.page+=delta;refreshEvdtrLog();}
+function meterRange(start,end){
+  const hasStart=start!==null&&start!==undefined&&start!=='';
+  const hasEnd=end!==null&&end!==undefined&&end!=='';
+  return hasStart||hasEnd?`${hasStart?h(start):'—'} → ${hasEnd?h(end):'—'}`:'—';
+}
+function refreshEvdtrLog(){
+  const tbody=document.getElementById('logTbody');if(!tbody)return;
+  const q=_logState.query;
+  const filtered=_evdtrRows.filter(r=>{
+    if(_logState.type!=='ALL'&&r.type!==_logState.type)return false;
+    if(!q)return true;
+    return [r.type,r.evdtrNo,r.equipment,r.date,r.description].some(v=>String(v||'').toLowerCase().includes(q));
+  });
+  const pages=Math.max(1,Math.ceil(filtered.length/_logState.size));
+  _logState.page=Math.min(Math.max(1,_logState.page),pages);
+  const start=(_logState.page-1)*_logState.size;
+  const visible=filtered.slice(start,start+_logState.size);
+  tbody.innerHTML=visible.length?visible.map(r=>{const editIndex=_evdtrRows.indexOf(r);return `<tr>
+    <td><span class="pill p${h(String(r.type||'').charAt(0).toLowerCase())}">${h(r.type||'—')}</span></td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--blue)">${h(r.evdtrNo||'—')}</td>
+    <td style="font-weight:600;color:var(--t1)">${h(r.equipment||'—')}</td><td>${h(r.date||'—')}</td>
+    <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="${h(r.description||'')}">${h(r.description||'—')}</td>
+    <td>${Number(r.hours)>0?h(r1(r.hours))+' hrs':'—'}</td><td>${Number(r.distance)>0?h(r1(r.distance))+' km':'—'}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${meterRange(r.startOdo,r.endOdo)}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${meterRange(r.startSmr,r.endSmr)}</td>
+    <td><button type="button" class="log-edit-btn" onclick="openLogEditor(${editIndex})">Edit</button></td>
+  </tr>`;}).join(''):'<tr><td colspan="10" class="empty">No EVDTR records match this search</td></tr>';
+  const from=filtered.length?start+1:0,to=Math.min(start+_logState.size,filtered.length);
+  document.getElementById('logPagerInfo').textContent=`Showing ${from}–${to} of ${filtered.length} records · Page ${_logState.page} of ${pages}`;
+  document.getElementById('logPrev').disabled=_logState.page<=1;
+  document.getElementById('logNext').disabled=_logState.page>=pages;
+}
+
+let _editingLog=null;
+
+function setLogEditorValue(id,value){
+  const input=document.getElementById(id);if(input)input.value=value===null||value===undefined?'':value;
+}
+
+function logEditorTypeChanged(){
+  const type=document.getElementById('logEditType').value;
+  const travel=type==='Travel';
+  document.getElementById('logTravelFields').hidden=!travel;
+  document.getElementById('logOtherFields').hidden=travel;
+  document.getElementById('logDescription').required=!travel;
+}
+
+function openLogEditor(index){
+  const isEdit=index!==undefined&&index!==null&&Number(index)>=0;
+  const row=isEdit?_evdtrRows[Number(index)]:null;
+  if(isEdit&&(!row||!row.rowNumber||!row.editToken)){
+    showToast('This log cannot be edited until the dashboard is refreshed.','error');return;
+  }
+  _editingLog=isEdit?{mode:'edit',row:row,index:Number(index)}:{mode:'add',row:null,index:-1};
+  const form=document.getElementById('logEditorForm');form.reset();
+  const selectedType=!isEdit&&_logState.type!=='ALL'?_logState.type:'Travel';
+  setLogEditorValue('logEditType',isEdit?row.type:selectedType);
+  document.getElementById('logEditType').disabled=isEdit;
+  setLogEditorValue('logEditDate',isEdit?row.date:(document.getElementById('dTo').value||fmt(new Date())));
+  setLogEditorValue('logEditEvdtr',isEdit?row.evdtrNo:'');
+  const selectedEquipment=Array.from(_selectedEquipment);
+  setLogEditorValue('logEditEquipment',isEdit?row.equipment:(selectedEquipment.length===1?selectedEquipment[0]:''));
+  setLogEditorValue('logOriginCode',isEdit?row.originCode:'');
+  setLogEditorValue('logOriginDescription',isEdit?row.originDescription:'');
+  setLogEditorValue('logDestinationCode',isEdit?row.destinationCode:'');
+  setLogEditorValue('logDestinationDescription',isEdit?row.destinationDescription:'');
+  setLogEditorValue('logDeparture',isEdit?row.departure:'');
+  setLogEditorValue('logArrival',isEdit?row.arrival:'');
+  setLogEditorValue('logRemarks',isEdit?row.remarks:'');
+  setLogEditorValue('logDescription',isEdit?row.description:'');
+  setLogEditorValue('logStartTime',isEdit?row.startTime:'');
+  setLogEditorValue('logEndTime',isEdit?row.endTime:'');
+  setLogEditorValue('logStartOdo',isEdit?row.startOdo:'');
+  setLogEditorValue('logEndOdo',isEdit?row.endOdo:'');
+  setLogEditorValue('logStartSmr',isEdit?row.startSmr:'');
+  setLogEditorValue('logEndSmr',isEdit?row.endSmr:'');
+  setLogEditorValue('logEditReason','');
+  document.getElementById('logEditVerified').checked=false;
+  document.getElementById('logEditorTitle').textContent=isEdit?'Edit EVDTR Log':'Add EVDTR Log';
+  document.getElementById('logEditorSubtitle').textContent=isEdit?'Correct the exact source row. The before and after values will be recorded in EVDTRLogEditHistory.':'Add a verified entry to its source activity sheet. Every save is recorded in EVDTRLogEditHistory.';
+  document.getElementById('logEditorMeta').innerHTML=isEdit?`<strong>Source to edit:</strong> ${h(row.sheet||row.type)} row ${h(row.rowNumber)}<br><strong>${h(row.evdtrNo)}</strong> · ${h(row.equipment)} · ${h(row.date)}`:'Use the values from the signed/manual EVDTR. Choose the activity type carefully because it determines the source sheet.';
+  document.getElementById('logEditError').textContent='';
+  document.getElementById('logEditError').classList.remove('show');
+  const save=document.getElementById('saveLogBtn');save.disabled=false;save.textContent=isEdit?'Save correction':'Add log';
+  document.getElementById('logEquipmentList').innerHTML=_equipmentOptions.map(eq=>`<option value="${h(eq)}"></option>`).join('');
+  logEditorTypeChanged();
+  document.getElementById('logEditorModal').classList.add('open');
+  document.body.style.overflow='hidden';
+  setTimeout(()=>document.getElementById(isEdit?'logEditEvdtr':'logEditType').focus(),50);
+}
+
+function closeLogEditor(){
+  document.getElementById('logEditorModal')?.classList.remove('open');
+  document.body.style.overflow='';
+  _editingLog=null;
+}
+
+function logEditorError(message){
+  const error=document.getElementById('logEditError');
+  error.textContent=message||'The log could not be saved.';error.classList.add('show');
+  const save=document.getElementById('saveLogBtn');save.disabled=false;save.textContent=_editingLog?.mode==='edit'?'Save correction':'Add log';
+}
+
+function saveLogEditor(event){
+  event.preventDefault();
+  if(!_editingLog)return;
+  const form=document.getElementById('logEditorForm');
+  if(!form.reportValidity())return;
+  const value=id=>document.getElementById(id).value.trim();
+  const meter=id=>{const text=value(id);return text===''?'':Number(text)};
+  const type=value('logEditType');
+  const startOdo=meter('logStartOdo'),endOdo=meter('logEndOdo');
+  const startSmr=meter('logStartSmr'),endSmr=meter('logEndSmr');
+  const checkMeterPair=(start,end,label)=>{
+    if((start==='')!==(end===''))return `Enter both Start and End ${label}, or leave both blank.`;
+    if(start!==''&&(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<0))return `${label} readings must be non-negative numbers.`;
+    if(start!==''&&end<start)return `End ${label} cannot be lower than Start ${label}.`;
+    return '';
+  };
+  let validation=checkMeterPair(startOdo,endOdo,'ODO')||checkMeterPair(startSmr,endSmr,'SMR');
+  const startTime=type==='Travel'?value('logDeparture'):value('logStartTime');
+  const endTime=type==='Travel'?value('logArrival'):value('logEndTime');
+  if(!validation&&!!startTime!==!!endTime)validation=`Enter both ${type==='Travel'?'Departure and Arrival':'Start Time and End Time'}, or leave both blank.`;
+  if(!validation&&startTime&&startTime===endTime)validation='Start and end times must produce a valid duration.';
+  if(!validation&&type!=='Travel'&&!value('logDescription'))validation='Description is required for this activity type.';
+  if(!validation&&!document.getElementById('logEditVerified').checked)validation='Confirm that you checked this entry against the signed/manual EVDTR.';
+  if(validation){logEditorError(validation);return;}
+
+  const payload={
+    mode:_editingLog.mode,type:type,
+    rowNumber:_editingLog.row?.rowNumber||0,editToken:_editingLog.row?.editToken||'',
+    evdtrNo:value('logEditEvdtr'),equipment:value('logEditEquipment'),date:value('logEditDate'),
+    originCode:value('logOriginCode'),originDescription:value('logOriginDescription'),
+    destinationCode:value('logDestinationCode'),destinationDescription:value('logDestinationDescription'),
+    departure:value('logDeparture'),arrival:value('logArrival'),remarks:value('logRemarks'),
+    description:value('logDescription'),startTime:value('logStartTime'),endTime:value('logEndTime'),
+    startOdo:startOdo,endOdo:endOdo,startSmr:startSmr,endSmr:endSmr,
+    reason:value('logEditReason'),verified:true
+  };
+  const editMode=_editingLog.mode;
+  const save=document.getElementById('saveLogBtn');save.disabled=true;save.textContent='Saving…';
+  document.getElementById('logEditError').classList.remove('show');
+
+  const saved=()=>{
+    const action=editMode==='edit'?'correction':'log';
+    const savedDate=payload.date;
+    closeLogEditor();showToast(`EVDTR ${action} saved to ${type}.`);
+    const from=document.getElementById('dFrom'),to=document.getElementById('dTo');
+    if(from.value&&savedDate<from.value)from.value=savedDate;
+    if(to.value&&savedDate>to.value)to.value=savedDate;
+    clearFleetClientCache();
+    setTimeout(loadData,100);
+  };
+
+    const previewRow={...(_editingLog.row||{}),type:type,evdtrNo:payload.evdtrNo,equipment:payload.equipment,date:payload.date,description:type==='Travel'?[payload.originCode||payload.originDescription,payload.destinationCode||payload.destinationDescription].filter(Boolean).join(' → '):payload.description,startOdo:startOdo,endOdo:endOdo,startSmr:startSmr,endSmr:endSmr,departure:payload.departure,arrival:payload.arrival,startTime:payload.startTime,endTime:payload.endTime,remarks:payload.remarks,hours:0,distance:startOdo!==''?Math.max(0,endOdo-startOdo):0};
+    if(editMode==='edit')Object.assign(_editingLog.row,previewRow);else _evdtrRows.unshift(previewRow);
+    closeLogEditor();refreshEvdtrLog();showToast('Demo log updated for this session only.');
+  
+}
+
+let _activityRows=[];
+let _activityState={type:'Travel',page:1,size:25,query:''};
+
+function activityPageConfig(type){
+  const configs={
+    Travel:{title:'Travel',subtitle:'Complete trip activity, route, hours, distance, and meter readings.',accent:'var(--teal)',unitLabel:'Traveling Units',hoursLabel:'Travel Hours',detailLabel:'Routes',averageLabel:'Average Trip'},
+    Utilize:{title:'Utilize',subtitle:'Complete utilization activity with work descriptions, hours, distance, and meter readings.',accent:'var(--green)',unitLabel:'Utilizing Units',hoursLabel:'Utilization Hours',detailLabel:'Activities',averageLabel:'Average Entry'},
+    Idle:{title:'Idle',subtitle:'Complete idle and standby activity with duration, reason, distance, and meter readings.',accent:'var(--amber)',unitLabel:'Idle Units',hoursLabel:'Idle Hours',detailLabel:'Idle Reasons',averageLabel:'Average Idle Period'}
+  };
+  return configs[type]||configs.Travel;
+}
+
+function renderActivityPage(d,type){
+  const cfg=activityPageConfig(type);
+  _activityRows=(d.evdtrLog||d.recentRecords||[]).filter(r=>r.type===type);
+  _activityState={type,page:1,size:25,query:''};
+  const units=new Set(_activityRows.map(r=>r.equipment).filter(Boolean)).size;
+  const totalHrs=_activityRows.reduce((sum,r)=>sum+(Number(r.hours)||0),0);
+  const totalDistance=_activityRows.reduce((sum,r)=>sum+(Number(r.distance)||0),0);
+  const details=new Set(_activityRows.map(r=>String(r.description||'').trim()).filter(Boolean)).size;
+  const avg=_activityRows.length?totalHrs/_activityRows.length:0;
+  const fifthMetric=type==='Travel'
+    ? pageMetric('Total Distance',r1(totalDistance)+' km','Distance across all trips','var(--blue)')
+    : pageMetric(cfg.detailLabel,details,'Unique descriptions in range','var(--purple)');
+  document.getElementById('app').innerHTML=`
+    ${pageHeading(cfg.title,cfg.subtitle)}
+    <div class="page-metrics">
+      ${pageMetric(type+' Records',_activityRows.length,'Entries in selected range',cfg.accent)}
+      ${pageMetric(cfg.unitLabel,units,'Unique equipment units','var(--blue)')}
+      ${pageMetric(cfg.hoursLabel,r1(totalHrs)+' hrs','Total recorded duration',cfg.accent)}
+      ${pageMetric(cfg.averageLabel,r1(avg)+' hrs','Average duration per entry','var(--amber)')}
+      ${fifthMetric}
+    </div>
+    ${type==='Utilize'?`<div class="tcard"><div class="shdr" style="margin-bottom:10px"><div class="stitle">Activities by Equipment Group</div><span style="font-size:11px;color:var(--t3)">Ranked by entry count with total hours</span></div><div id="utilizeDataPanel"></div></div>`:''}
+    <div class="tcard">
+      <div class="shdr" style="margin-bottom:12px;align-items:flex-end;gap:12px;flex-wrap:wrap">
+        <div><div class="stitle">All ${h(type)} Records</div><div style="font-size:11px;color:var(--t3);margin-top:4px">Search equipment, EVDTR number, date, activity, or route</div></div>
+        <div class="page-tools">
+          <input class="page-search" id="activitySearch" type="search" placeholder="Search ${h(type.toLowerCase())} records…" oninput="activitySearchChanged(this.value)">
+          <select class="page-select" id="activitySize" onchange="activitySizeChanged(this.value)"><option value="25">25 rows</option><option value="50">50 rows</option><option value="100">100 rows</option></select>
+        </div>
+      </div>
+      <div class="tscroll"><table>
+        <thead><tr><th>Date</th><th>EVDTR No.</th><th>Equipment</th><th>${type==='Travel'?'Route':'Activity / Description'}</th><th>Hours</th><th>Distance</th><th>ODO Start → End</th><th>SMR Start → End</th></tr></thead>
+        <tbody id="activityTbody"></tbody>
+      </table></div>
+      <div class="pager"><div class="pager-info" id="activityPagerInfo"></div><div class="pager-buttons"><button class="pager-btn" id="activityPrev" onclick="activityPageMove(-1)">Previous</button><button class="pager-btn" id="activityNext" onclick="activityPageMove(1)">Next</button></div></div>
+    </div>`;
+  if(type==='Utilize')buildUtilizeActivity(d.utilizeActivity||{});
+  refreshActivityLog();
+}
+
+function activitySearchChanged(value){_activityState.query=String(value||'').trim().toLowerCase();_activityState.page=1;refreshActivityLog();}
+function activitySizeChanged(value){_activityState.size=Number(value)||25;_activityState.page=1;refreshActivityLog();}
+function activityPageMove(delta){_activityState.page+=delta;refreshActivityLog();}
+
+function refreshActivityLog(){
+  const tbody=document.getElementById('activityTbody');if(!tbody)return;
+  const q=_activityState.query;
+  const filtered=_activityRows.filter(r=>!q||[r.evdtrNo,r.equipment,r.date,r.description,r.hours,r.distance,r.startOdo,r.endOdo,r.startSmr,r.endSmr].some(v=>String(v??'').toLowerCase().includes(q)));
+  const pages=Math.max(1,Math.ceil(filtered.length/_activityState.size));
+  _activityState.page=Math.min(Math.max(1,_activityState.page),pages);
+  const start=(_activityState.page-1)*_activityState.size;
+  const visible=filtered.slice(start,start+_activityState.size);
+  tbody.innerHTML=visible.length?visible.map(r=>`<tr>
+    <td>${h(r.date||'—')}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--blue)">${h(r.evdtrNo||'—')}</td>
+    <td style="font-weight:600;color:var(--t1)">${h(r.equipment||'—')}</td>
+    <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis" title="${h(r.description||'')}">${h(r.description||'—')}</td>
+    <td>${Number(r.hours)>0?h(r1(r.hours))+' hrs':'—'}</td>
+    <td>${Number(r.distance)>0?h(r1(r.distance))+' km':'—'}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${meterRange(r.startOdo,r.endOdo)}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${meterRange(r.startSmr,r.endSmr)}</td>
+  </tr>`).join(''):`<tr><td colspan="8" class="empty">No ${h(_activityState.type.toLowerCase())} records match this search</td></tr>`;
+  const from=filtered.length?start+1:0,to=Math.min(start+_activityState.size,filtered.length);
+  document.getElementById('activityPagerInfo').textContent=`Showing ${from}–${to} of ${filtered.length} records · Page ${_activityState.page} of ${pages}`;
+  document.getElementById('activityPrev').disabled=_activityState.page<=1;
+  document.getElementById('activityNext').disabled=_activityState.page>=pages;
+}
+
+function renderOutlierPage(d){
+  const meters=d.odoSmrOutliers||[];
+  const active=meters.filter(o=>o.status==='active');
+  const fixed=meters.filter(o=>o.status==='fixed');
+  const critical=active.filter(o=>o.severity==='critical').length;
+  document.getElementById('app').innerHTML=`
+    ${pageHeading('Outlier Review','Review excessive daily hours, Travel distance, and Travel time, then correct the verified source values.')}
+    <div class="page-metrics">
+      ${pageMetric('Hours Outliers',(d.outliers||[]).length,'Above 16 hours per day','var(--amber)')}
+      ${pageMetric('Active Meter Flags',active.length,'Time, distance, ODO, and SMR requiring review','var(--red)')}
+      ${pageMetric('Critical',critical,'High-risk meter entries','var(--red)')}
+      ${pageMetric('Recently Fixed',fixed.length,'Shown for seven days','var(--green)')}
+    </div>
+    <div class="tcard" style="padding:14px 16px">
+      <div class="stitle" style="margin-bottom:9px">How the checker decides</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;font-size:11px;color:var(--t2);line-height:1.5">
+        <div><strong style="color:var(--t1)">Daily hours</strong><br>Warning above 16 hours; error above 24 hours. Expand an alert to see every contributing sheet row, including waiting entries.</div>
+        <div><strong style="color:var(--t1)">Travel distance</strong><br>Flags Distance Travelled above the credible equipment and trip-duration limit. The correction form shows Start/End ODO and SMR together.</div>
+        <div><strong style="color:var(--t1)">Travel time</strong><br>Flags a single Time Travelled entry above 16 hours. Correct Departure or Arrival and the duration is recalculated, including overnight trips.</div>
+        <div><strong style="color:var(--t1)">Reading continuity</strong><br>Compares the current start with the previous recorded end for the same equipment and shows both source rows.</div>
+        <div><strong style="color:var(--t1)">Safe correction</strong><br>Meter changes require source confirmation. Distance Travelled is then recalculated from End ODO minus Start ODO and the complete change is audited.</div>
+      </div>
+    </div>
+    <div class="tcard"><div class="shdr" style="margin-bottom:10px"><div class="stitle">Daily Hours Outliers</div><span style="font-size:11px;color:var(--t3)">&gt;16 hrs warning · &gt;24 hrs error</span></div><div class="outpanel" id="outlierPanel"></div></div>
+    <div class="twocol">
+      <div class="tcard"><div class="shdr" style="margin-bottom:10px"><div style="display:flex;flex-direction:column;gap:6px;flex:1"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div class="stitle">Travel Time, Distance &amp; ODO Outliers</div><label class="fix-toggle"><input type="checkbox" id="odoShowFixed" onchange="buildOdoSmrOutliers(window._odoSmrData||[])" checked> Show Fixed</label></div><div class="odo-summary" id="odoSummary"></div></div></div><div class="outpanel" id="odoOutlierPanel"></div></div>
+      <div class="tcard"><div class="shdr" style="margin-bottom:10px"><div style="display:flex;flex-direction:column;gap:6px;flex:1"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div class="stitle">SMR Outliers</div><label class="fix-toggle"><input type="checkbox" id="smrShowFixed" onchange="buildOdoSmrOutliers(window._odoSmrData||[])" checked> Show Fixed</label></div><div class="odo-summary" id="smrSummary"></div></div></div><div class="outpanel" id="smrOutlierPanel"></div></div>
+    </div>`;
+  buildOutliers(d.outliers||[]);buildOdoSmrOutliers(meters);
+}
+
+function renderRoutesPage(d){
+  const routeData=d.avgTripHours||{};
+  const all=Object.values(routeData).flat();
+  const trips=all.reduce((sum,r)=>sum+(Number(r.tripCount)||0),0);
+  const weighted=trips?all.reduce((sum,r)=>sum+(Number(r.avgHrs)||0)*(Number(r.tripCount)||0),0)/trips:0;
+  _routeRenderLimit=Number.MAX_SAFE_INTEGER;
+  _routePrefix='TT';
+  _routeOrigin='';
+  _routeDestination='';
+  document.getElementById('app').innerHTML=`
+    ${pageHeading('Average Travel per Route','Compare normal trip duration by equipment group, origin, and destination.')}
+    <div class="page-metrics">${pageMetric('Routes',all.length,'Unique origin-destination pairs','var(--blue)')}${pageMetric('Trips',trips,'Trips in selected range','var(--teal)')}${pageMetric('Fleet Average',r1(weighted)+' hrs','Weighted by trip count','var(--green)')}</div>
+    <div class="tcard">
+      <div class="shdr" style="margin-bottom:12px;gap:10px;flex-wrap:wrap"><div><div class="stitle">Route Travel Performance</div><div style="font-size:11px;color:var(--t3);margin-top:4px">Longer averages are highlighted for review</div></div><div class="route-tabs"><button class="route-tab on" onclick="routeTabSwitch(this,'TT')">TT</button><button class="route-tab" onclick="routeTabSwitch(this,'SV')">SV</button><button class="route-tab" onclick="routeTabSwitch(this,'CT')">CT</button><button class="route-tab" onclick="routeTabSwitch(this,'LTR')">LTR</button></div></div>
+      <div class="route-filter-bar" aria-label="Route filters">
+        <label class="route-filter-field"><span>Project Origin</span><select id="routeOriginFilter" onchange="routeFilterChanged('origin',this.value)" aria-label="Filter by project origin"></select></label>
+        <label class="route-filter-field"><span>Project Destination</span><select id="routeDestinationFilter" onchange="routeFilterChanged('destination',this.value)" aria-label="Filter by project destination"></select></label>
+        <button type="button" class="route-filter-clear" onclick="clearRouteFilters()">Clear filters</button>
+        <div class="route-filter-summary" id="routeFilterSummary" aria-live="polite"></div>
+      </div>
+      <div id="routeTableWrap"></div>
+    </div>`;
+  _avgTripData=routeData;
+  populateRouteFilters('TT');
+  buildRouteTable(routeData,'TT',_routeRenderLimit);
+}
+
+function renderBreakdownPage(d){
+  const events=(d.evdtrLog||d.recentRecords||[]).filter(r=>r.type==='Breakdown');
+  const stats=d.breakdownStats||[];
+  const totalHrs=events.reduce((sum,r)=>sum+(Number(r.hours)||0),0);
+  const units=new Set(events.map(r=>r.equipment).filter(Boolean)).size;
+  document.getElementById('app').innerHTML=`
+    ${pageHeading('Breakdown','Maintenance event summary and detailed breakdown activity log.')}
+    <div class="page-metrics">${pageMetric('Breakdown Events',events.length,'Events in selected range','var(--red)')}${pageMetric('Affected Units',units,'Equipment with breakdowns','var(--amber)')}${pageMetric('Repair Hours',r1(totalHrs)+' hrs','Total logged downtime','var(--red)')}${pageMetric('Average MTTR',events.length?r1(totalHrs/events.length)+' hrs':'0 hrs','Average repair time','var(--blue)')}</div>
+    <div class="tcard"><div class="shdr" style="margin-bottom:10px"><div class="stitle">Equipment Reliability Summary</div></div><div class="tscroll"><table><thead><tr><th>Equipment</th><th>Events</th><th>Repair Hrs</th><th>MTTR</th><th>MTBF</th><th>Status</th></tr></thead><tbody id="bdTbody"></tbody></table></div></div>
+    <div class="tcard"><div class="shdr" style="margin-bottom:10px"><div class="stitle">Breakdown Event Log</div><span style="font-size:11px;color:var(--t3)">${events.length} filtered event${events.length===1?'':'s'}</span></div><div class="tscroll"><table><thead><tr><th>Date</th><th>EVDTR No.</th><th>Equipment</th><th>Description</th><th>Repair Hours</th><th>ODO Start → End</th><th>SMR Start → End</th></tr></thead><tbody>${events.length?events.map(r=>`<tr><td>${h(r.date||'—')}</td><td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--blue)">${h(r.evdtrNo||'—')}</td><td style="font-weight:600;color:var(--t1)">${h(r.equipment||'—')}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${h(r.description||'—')}</td><td>${Number(r.hours)>0?h(r1(r.hours))+' hrs':'—'}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${meterRange(r.startOdo,r.endOdo)}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${meterRange(r.startSmr,r.endSmr)}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">No breakdown events in this range</td></tr>'}</tbody></table></div></div>`;
+  buildBdTable(stats);
+}
+
+// ── CHART HELPERS ──────────────────────────────
+const COLORS = {utilize:'rgba(22,163,74,.8)',idle:'rgba(217,119,6,.72)',travel:'rgba(26,111,196,.78)',breakdown:'rgba(220,38,38,.7)'};
+const TT_OPTS = {backgroundColor:'#fff',borderColor:'#dde2ea',borderWidth:1,titleColor:'#1a2332',bodyColor:'#4a5568',padding:10};
+
+function covlDone(id){ const e=document.getElementById(id); if(e) e.classList.add('done'); }
+
+function buildTrend(trends){
+  const cv = document.getElementById('trendC'); if(!cv) return;
+  if(charts.trend) charts.trend.destroy();
+  charts.trend = new Chart(cv,{
+    type:'bar',
+    data:{
+      labels: trends.map(t=>{ const d=new Date(t.date+'T00:00:00'); return d.toLocaleDateString('en-PH',{month:'short',day:'numeric'}); }),
+      datasets:[
+        {label:'Utilize',data:trends.map(t=>t.utilize),backgroundColor:COLORS.utilize,borderRadius:2,stack:'a'},
+        {label:'Idle',   data:trends.map(t=>t.idle),   backgroundColor:COLORS.idle,   borderRadius:2,stack:'a'},
+        {label:'Travel', data:trends.map(t=>t.travel), backgroundColor:COLORS.travel, borderRadius:2,stack:'a'},
+        {label:'Breakdown',data:trends.map(t=>t.breakdown),backgroundColor:COLORS.breakdown,borderRadius:2,stack:'a'}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,...TT_OPTS}},
+      scales:{
+        x:{ticks:{color:'#8a96a8',font:{size:11},maxRotation:45,autoSkip:true},grid:{color:'rgba(0,0,0,.04)'}},
+        y:{ticks:{color:'#8a96a8',font:{size:11}},grid:{color:'rgba(0,0,0,.06)'},beginAtZero:true}
+      }
+    }
+  });
+  covlDone('trendOvl');
+}
+
+function tabSwitch(btn,mode){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  if(!charts.trend) return;
+  const show={all:[0,1,2,3],utilize:[0],idle:[1],travel:[2],breakdown:[3]}[mode]||[0,1,2,3];
+  charts.trend.data.datasets.forEach((ds,i)=>ds.hidden=!show.includes(i));
+  charts.trend.update();
+}
+
+const EQ_DEFS = [
+  {key:'TT', cvId:'ttC', nId:'ttN'},
+  {key:'SV', cvId:'svC', nId:'svN'},
+  {key:'CT', cvId:'ctC', nId:'ctN'},
+  {key:'LTR',cvId:'ltrC',nId:'ltrN'}
+];
+
+function buildEqTypes(etd){
+  EQ_DEFS.forEach(({key,cvId,nId})=>{
+    const cv = document.getElementById(cvId); if(!cv) return;
+    if(charts[key]) charts[key].destroy();
+    const td = etd[key]||{}, units = Object.keys(td).sort();
+    const nel = document.getElementById(nId);
+    if(nel) nel.textContent = units.length ? units.length+' unit'+(units.length>1?'s':'') : 'No data in range';
+    if(!units.length){ covlDone(cvId+'Ovl'); return; }
+    cv.parentElement.style.height = Math.max(180, units.length*38+50)+'px';
+    charts[key] = new Chart(cv,{
+      type:'bar',
+      data:{
+        labels:units,
+        datasets:[
+          {label:'Utilize',  data:units.map(u=>r1((td[u]||{}).utilize||0)),  backgroundColor:COLORS.utilize,  hoverBackgroundColor:'#16a34a',borderRadius:2,stack:'s'},
+          {label:'Idle',     data:units.map(u=>r1((td[u]||{}).idle||0)),     backgroundColor:COLORS.idle,     hoverBackgroundColor:'#d97706',borderRadius:2,stack:'s'},
+          {label:'Travel',   data:units.map(u=>r1((td[u]||{}).travel||0)),   backgroundColor:COLORS.travel,   hoverBackgroundColor:'#1a6fc4',borderRadius:2,stack:'s'},
+          {label:'Breakdown',data:units.map(u=>r1((td[u]||{}).breakdown||0)),backgroundColor:COLORS.breakdown,hoverBackgroundColor:'#dc2626',borderRadius:2,stack:'s'}
+        ]
+      },
+      options:{
+        indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        interaction:{mode:'point',axis:'y',intersect:true},
+        plugins:{legend:{display:false},tooltip:{
+            mode:'point',
+            intersect:true,
+            backgroundColor:'#fff',
+            borderColor:'#dde2ea',
+            borderWidth:1,
+            titleColor:'#1a2332',
+            bodyColor:'#4a5568',
+            padding:12,
+            boxPadding:4,
+            usePointStyle:true,
+            callbacks:{
+              title: ctx => {
+                // Show equipment name as title
+                return ctx[0] ? ctx[0].label : '';
+              },
+              label: ctx => {
+                // Show which activity and hours
+                return '  ' + ctx.dataset.label + ': ' + ctx.raw + ' hrs';
+              },
+              afterBody: ctx => {
+                // Show total hours for that equipment row
+                if(!ctx.length) return '';
+                const chart = ctx[0].chart;
+                const di = ctx[0].dataIndex;
+                let total = 0;
+                chart.data.datasets.forEach(ds => { total += (ds.data[di] || 0); });
+                return ['', '  Total: ' + Math.round(total * 10) / 10 + ' hrs'];
+              }
+            }
+          }},
+        scales:{
+          x:{stacked:true,beginAtZero:true,ticks:{color:'#8a96a8',font:{size:11}},grid:{color:'rgba(0,0,0,.05)'},title:{display:true,text:'Hours',color:'#8a96a8',font:{size:11}}},
+          y:{stacked:true,ticks:{color:'#4a5568',font:{size:11,family:"'DM Mono',monospace"}},grid:{color:'rgba(0,0,0,.04)'}}
+        }
+      }
+    });
+    covlDone(cvId+'Ovl');
+  });
+}
+
+function buildDonut(k,total){
+  const cv = document.getElementById('donutC'); if(!cv) return;
+  if(charts.donut) charts.donut.destroy();
+  const vals=[k.totalUtilizeHrs,k.totalIdleHrs,k.totalTravelHrs,k.totalBreakdownHrs];
+  const lbls=['Utilize','Idle','Travel','Breakdown'];
+  const clrs=['#16a34a','#d97706','#1a6fc4','#dc2626'];
+  const el = document.getElementById('donutLeg');
+  if(el) el.innerHTML = lbls.map((l,i)=>`<span class="legitem"><span class="legdot" style="background:${clrs[i]}"></span>${l} ${total>0?Math.round(vals[i]/total*100):0}%</span>`).join('');
+  charts.donut = new Chart(cv,{
+    type:'doughnut',
+    data:{labels:lbls,datasets:[{data:vals,backgroundColor:clrs,borderWidth:2,borderColor:'#fff',hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{display:false},tooltip:{...TT_OPTS,callbacks:{label:c=>`${c.label}: ${r1(c.raw)} hrs`}}}}
+  });
+  covlDone('donutOvl');
+}
+
+function buildSites(sites){
+  const el = document.getElementById('siteRows'); if(!el) return;
+  if(!sites.length){ el.innerHTML='<div class="empty">No site data in range</div>'; return; }
+  const max = Math.max(...sites.map(s=>s.trips));
+  el.innerHTML = sites.slice(0,8).map(s=>{
+    const projectName = (s.desc && s.desc !== s.code && s.desc !== s.site) ? s.desc : '';
+    return `
+    <div class="siterow">
+      <div class="sitetop">
+        <div style="display:flex;flex-direction:column;gap:1px;min-width:0">
+          <span style="font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.code||s.site}</span>
+          ${projectName ? `<span class="sitenm" title="${projectName}" style="font-size:12px;font-weight:600;color:var(--t1)">${projectName}</span>` : ''}
+          <span style="font-size:11px;color:var(--t3)">${s.equipmentCount} units · ${s.totalDistance} km</span>
+        </div>
+        <span style="color:var(--blue);font-weight:600;flex-shrink:0;margin-left:8px">${s.trips} trips</span>
+      </div>
+      <div class="sitebg"><div class="sitefill" style="width:${max>0?Math.round(s.trips/max*100):0}%"></div></div>
+    </div>`}).join('');
+}
+
+function buildBdTable(stats){
+  const tb = document.getElementById('bdTbody'); if(!tb) return;
+  if(!stats.length){ tb.innerHTML='<tr><td colspan="6" class="empty">No breakdown events recorded</td></tr>'; return; }
+  tb.innerHTML = stats.map(s=>{
+    const sev = s.breakdownCount>3?'danger':s.breakdownCount>1?'warning':'ok';
+    const [bg,fg] = {danger:['#fde8e8','#dc2626'],warning:['#fef3e0','#d97706'],ok:['#e3f5ea','#16a34a']}[sev];
+    return `<tr>
+      <td style="font-weight:500;color:var(--t1)">${s.equipment}</td>
+      <td><b style="color:${fg}">${s.breakdownCount}</b></td>
+      <td>${s.totalRepairHrs} hrs</td>
+      <td>${s.mttr} hrs</td>
+      <td>${s.mtbf>0?s.mtbf+' hrs':'—'}</td>
+      <td><span style="background:${bg};color:${fg};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600">${{danger:'Critical',warning:'Monitor',ok:'Normal'}[sev]}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function buildAlerts(alerts){
+  const el = document.getElementById('alertsEl'); if(!el) return;
+  if(!alerts.length){ el.innerHTML='<div class="noalert"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg> All clear — no active alerts</div>'; return; }
+  el.innerHTML = alerts.map(a=>`
+    <div class="aitem ${a.type}">
+      <div class="aicon ${a.type}">${alertIcon(a.type)}</div>
+      <div><div class="amsg">${a.message}</div><div class="aeq">${a.equipment}</div></div>
+    </div>`).join('');
+}
+
+function alertIcon(t){
+  const paths = {danger:'M12 9v2m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',warning:'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',info:'M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z'};
+  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="${paths[t]||paths.info}"/></svg>`;
+}
+
+function buildRecent(records){
+  const tb = document.getElementById('recTbody'); if(!tb) return;
+  if(!records.length){ tb.innerHTML='<tr><td colspan="6" class="empty">No recent records</td></tr>'; return; }
+  tb.innerHTML = records.map(r=>`
+    <tr>
+      <td><span class="pill p${r.type[0].toLowerCase()}">${r.type}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--blue)">${r.evdtrNo||'—'}</td>
+      <td style="font-weight:500;color:var(--t1)">${r.equipment||'—'}</td>
+      <td>${r.date||'—'}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${r.description||'—'}</td>
+      <td>${r.hours>0?r1(r.hours)+' hrs':'—'}</td>
+    </tr>`).join('');
+}
+
+// ── ROUTE AVG TABLE ────────────────────────────
+let _avgTripData = {};
+let _routeRenderLimit = 20;
+let _routePrefix = 'TT';
+let _routeOrigin = '';
+let _routeDestination = '';
+function routeTabSwitch(btn, prefix){
+  document.querySelectorAll('.route-tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  _routePrefix=prefix;
+  _routeOrigin='';
+  _routeDestination='';
+  populateRouteFilters(prefix);
+  buildRouteTable(_avgTripData, prefix, _routeRenderLimit);
+}
+
+function setRouteFilterOptions(selectId, rows, codeKey, descriptionKey, allLabel, selectedValue){
+  const select=document.getElementById(selectId); if(!select) return '';
+  const projects=new Map();
+  rows.forEach(r=>{
+    const code=String(r[codeKey]||'').trim();
+    if(!code) return;
+    const description=String(r[descriptionKey]||'').trim();
+    projects.set(code,description&&description!==code?`${code} — ${description}`:code);
+  });
+  select.replaceChildren();
+  const allOption=document.createElement('option');
+  allOption.value='';allOption.textContent=allLabel;select.appendChild(allOption);
+  Array.from(projects.entries()).sort((a,b)=>a[1].localeCompare(b[1],undefined,{numeric:true,sensitivity:'base'})).forEach(([code,label])=>{
+    const option=document.createElement('option');option.value=code;option.textContent=label;select.appendChild(option);
+  });
+  select.value=projects.has(selectedValue)?selectedValue:'';
+  return select.value;
+}
+
+function populateRouteFilters(prefix){
+  const rows=_avgTripData[prefix]||[];
+  _routeOrigin=setRouteFilterOptions('routeOriginFilter',rows,'origin','originDesc','All origin projects',_routeOrigin);
+  _routeDestination=setRouteFilterOptions('routeDestinationFilter',rows,'dest','destDesc','All destination projects',_routeDestination);
+}
+
+function routeFilterChanged(kind,value){
+  if(kind==='origin') _routeOrigin=value;
+  if(kind==='destination') _routeDestination=value;
+  buildRouteTable(_avgTripData,_routePrefix,_routeRenderLimit);
+}
+
+function clearRouteFilters(){
+  _routeOrigin='';
+  _routeDestination='';
+  const origin=document.getElementById('routeOriginFilter');if(origin)origin.value='';
+  const destination=document.getElementById('routeDestinationFilter');if(destination)destination.value='';
+  buildRouteTable(_avgTripData,_routePrefix,_routeRenderLimit);
+}
+
+function updateNotifications(alerts){
+  const items=Array.isArray(alerts)?alerts:[];
+  const count=document.getElementById('notifCount');
+  const summary=document.getElementById('notifSummary');
+  if(count){
+    count.textContent=items.length>99?'99+':String(items.length);
+    count.classList.toggle('show',items.length>0);
+  }
+  if(summary)summary.textContent=items.length?`${items.length} active fleet alert${items.length===1?'':'s'}`:'No active alerts';
+  buildAlerts(items);
+}
+
+function buildRouteTable(avgTripHours, prefix, limit){
+  _avgTripData = avgTripHours;
+  const wrap = document.getElementById('routeTableWrap'); if(!wrap) return;
+  _routePrefix=prefix;
+  const allRows = (avgTripHours[prefix]||[]);
+  const rows = allRows.filter(r=>(!_routeOrigin||r.origin===_routeOrigin)&&(!_routeDestination||r.dest===_routeDestination));
+  const matchedTrips=rows.reduce((sum,r)=>sum+(Number(r.tripCount)||0),0);
+  const summary=document.getElementById('routeFilterSummary');
+  if(summary)summary.textContent=`${rows.length} of ${allRows.length} routes · ${matchedTrips} trip${matchedTrips===1?'':'s'}`;
+  const rowLimit = Number.isFinite(limit) ? limit : 20;
+  if(!rows.length){
+    wrap.innerHTML='<div class="empty">'+(allRows.length?'No routes match the selected origin and destination.':'No travel records for '+prefix+' in this range')+'</div>'; return;
+  }
+  const hrsPill = h => {
+    const cls = h < 2 ? 'hrs-low' : h < 5 ? 'hrs-mid' : 'hrs-high';
+    return `<span class="hrs-pill ${cls}">${h} hrs</span>`;
+  };
+  wrap.innerHTML = `<div class="tscroll"><table class="rtable">
+    <thead><tr>
+      <th>Origin Code</th><th>Project Name (Origin)</th><th>Destination Code</th><th>Project Name (Dest)</th><th>Avg Travel</th><th>Trips</th>
+    </tr></thead>
+    <tbody>
+      ${rows.slice(0,rowLimit).map(r=>`<tr>
+        <td style="color:var(--blue);font-weight:600;white-space:nowrap">${h(r.origin)}</td>
+        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;color:var(--t1);font-size:11px" title="${h(r.originDesc||r.origin)}">${r.originDesc&&r.originDesc!==r.origin?h(r.originDesc):'—'}</td>
+        <td style="color:var(--teal);font-weight:600;white-space:nowrap">${h(r.dest)}</td>
+        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;color:var(--t1);font-size:11px" title="${h(r.destDesc||r.dest)}">${r.destDesc&&r.destDesc!==r.dest?h(r.destDesc):'—'}</td>
+        <td>${hrsPill(r.avgHrs)}</td>
+        <td style="color:var(--t3)">${r.tripCount} trip${r.tripCount>1?'s':''}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ── OUTLIER PANEL ──────────────────────────────
+function buildOutliers(outliers){
+  const el = document.getElementById('outlierPanel'); if(!el) return;
+  if(!outliers.length){
+    el.innerHTML='<div class="out-clear"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg> No daily totals above the 16-hour review threshold</div>';
+    return;
+  }
+  el.innerHTML = outliers.map(o=>{
+    const isWarn   = o.severity === 'warn';
+    const bg       = isWarn ? '#fffbeb' : '#fde8e8';
+    const border   = isWarn ? '#d97706' : '#dc2626';
+    const clr      = isWarn ? '#b45309' : '#dc2626';
+    const tag      = isWarn
+      ? `<span style="font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:8px">WARN &gt;16 hrs</span>`
+      : `<span style="font-size:10px;font-weight:700;background:#fde8e8;color:#dc2626;padding:1px 6px;border-radius:8px">ERROR &gt;24 hrs</span>`;
+    const sheetLabel = o.sheets ? `[${o.sheets}]` : '';
+    return `<div style="display:flex;align-items:center;gap:10px;background:${bg};border:1px solid ${border}33;border-left:3px solid ${border};border-radius:8px;padding:9px 12px">
+      <div style="font-size:13px;font-weight:700;color:${clr};min-width:70px">${h(o.equipment)}</div>
+      <div style="flex:1;font-size:12px;color:var(--t1)">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-weight:500">${h(o.date)}</span>
+          <span style="font-size:10px;color:var(--t3)">${h(sheetLabel)}</span>
+          ${tag}
+        </div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">${o.exceeds>0?'Impossible daily total: exceeds 24 hours by '+h(o.exceeds)+' hrs. Review the exact rows below.':'High daily total between 16–24 hours. Review for overlaps or incorrect times; it may still be valid.'}</div>
+        ${Array.isArray(o.contributions)&&o.contributions.length?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:10px;font-weight:700;color:${clr}">Show ${o.contributions.length} contributing source row${o.contributions.length===1?'':'s'}</summary><div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">${o.contributions.map(c=>`<div style="padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:10px;color:var(--t2)"><strong>${h(c.sheet)} row ${h(c.rowNumber||'—')}</strong>${c.evdtrNo?` · ${h(c.evdtrNo)}`:''} · ${h(c.hours)} hrs${c.startTime||c.endTime?` · ${h(c.startTime||'—')}–${h(c.endTime||'—')}`:''}${c.description?`<div style="margin-top:2px;color:var(--t3)">${h(c.description)}</div>`:''}</div>`).join('')}</div></details>`:''}
+      </div>
+      <div style="font-size:12px;font-weight:600;color:${clr};white-space:nowrap">${h(o.totalHrs)} hrs</div>
+    </div>`;
+  }).join('');
+}
+
+let _editingOutlier=null;
+let _toastTimer=null;
+
+function showToast(message,type){
+  const toast=document.getElementById('appToast');if(!toast)return;
+  clearTimeout(_toastTimer);
+  toast.textContent=message;
+  toast.classList.toggle('error',type==='error');
+  toast.classList.add('show');
+  _toastTimer=setTimeout(()=>toast.classList.remove('show'),3500);
+}
+
+function openOutlierEditor(index){
+  const item=(window._odoSmrData||[])[Number(index)];
+  if(!item||item.status!=='active'||!item.rowNumber){
+    showToast('This item cannot be edited until the dashboard is refreshed.','error');
+    return;
+  }
+  _editingOutlier=item;
+  const isDistance=item.sheet==='Travel'&&item.anomalyType==='distance_high';
+  const isTime=item.sheet==='Travel'&&item.anomalyType==='time_high';
+  document.getElementById('outlierEditTitle').textContent=isDistance?'Correct Excessive Distance':isTime?'Correct Excessive Travel Time':'Correct '+item.metric+' Reading';
+  document.getElementById('editRecordMeta').innerHTML=`<strong>Source to edit:</strong> ${h(item.sheet)} row ${h(item.rowNumber)}<br><strong>${h(item.equipment)}</strong> · ${h(item.date)}${item.evdtrNo?` · EVDTR <span style="font-family:'DM Mono',monospace">${h(item.evdtrNo)}</span>`:''}${isDistance?`<br><strong>Recorded distance:</strong> ${h(item.distanceReading)} km · <strong>Credible limit:</strong> ${h(item.limit)} km`:''}${isTime?`<br><strong>Recorded travel time:</strong> ${h(item.timeReading)} hrs · <strong>Credible limit:</strong> ${h(item.limit)} hrs`:''}${item.previousReading!==undefined&&item.previousReading!==null?`<br><strong>Compared with:</strong> ${h(item.previousSheet||'Previous record')}${item.previousRowNumber?` row ${h(item.previousRowNumber)}`:''}${item.previousEvdtrNo?` · EVDTR ${h(item.previousEvdtrNo)}`:''} · End ${h(item.previousReading)}${item.previousDate?` on ${h(item.previousDate)}`:''}`:''}`;
+  document.getElementById('editReason').textContent=item.reason||'Review and correct the source meter readings.';
+  document.getElementById('editAction').innerHTML=`<strong>Suspected field:</strong> ${h(item.suspectField||'Start or end')}<br><strong>What to check:</strong> ${h(item.recommendedAction||'Compare both readings with the signed EVDTR and correct only the confirmed error.')}${Number(item.limit)>0?`<br><strong>Rule used:</strong> ${h(item.limit)} ${item.metric==='ODO'?'km':'hrs'} limit for this check.`:''}${isTime?'<br><strong>Automatic update:</strong> Time Travelled will be recalculated as Arrival minus Departure. An arrival earlier than departure is treated as the next day.':item.sheet==='Travel'?'<br><strong>Automatic update:</strong> Distance Travelled will be recalculated as End ODO minus Start ODO. SMR remains engine hours and is not converted to kilometres.':''}`;
+  document.getElementById('editPrimaryFields').hidden=isDistance||isTime;
+  document.getElementById('editDistanceFields').hidden=!isDistance;
+  document.getElementById('editTimeFields').hidden=!isTime;
+  if(isDistance){
+    document.getElementById('editOdoStart').value=item.odoStartReading!==undefined&&item.odoStartReading!==null?item.odoStartReading:'';
+    document.getElementById('editOdoEnd').value=item.odoEndReading!==undefined&&item.odoEndReading!==null?item.odoEndReading:'';
+    document.getElementById('editSmrStart').value=item.smrStartReading!==undefined&&item.smrStartReading!==null?item.smrStartReading:'';
+    document.getElementById('editSmrEnd').value=item.smrEndReading!==undefined&&item.smrEndReading!==null?item.smrEndReading:'';
+  }else if(isTime){
+    document.getElementById('editDeparture').value=item.departureReading||'';
+    document.getElementById('editArrival').value=item.arrivalReading||'';
+  }else{
+    document.getElementById('editStartLabel').textContent=`Start ${item.metric} reading`;
+    document.getElementById('editEndLabel').textContent=`End ${item.metric} reading`;
+    document.getElementById('editStartReading').value=item.startReading!==undefined&&item.startReading!==null?item.startReading:'';
+    document.getElementById('editEndReading').value=item.endReading!==undefined&&item.endReading!==null?item.endReading:'';
+  }
+  document.getElementById('editVerified').checked=false;
+  const error=document.getElementById('editError');error.textContent='';error.classList.remove('show');
+  const save=document.getElementById('saveOutlierBtn');save.disabled=false;save.textContent='Save correction';
+  document.getElementById('outlierEditModal').classList.add('open');
+  document.body.style.overflow='hidden';
+  setTimeout(()=>document.getElementById(isDistance?'editOdoStart':isTime?'editDeparture':'editStartReading').focus(),50);
+}
+
+function closeOutlierEditor(){
+  document.getElementById('outlierEditModal')?.classList.remove('open');
+  document.body.style.overflow='';
+  _editingOutlier=null;
+}
+
+function outlierEditError(message){
+  const error=document.getElementById('editError');
+  error.textContent=message||'The correction could not be saved.';error.classList.add('show');
+  const save=document.getElementById('saveOutlierBtn');save.disabled=false;save.textContent='Save correction';
+}
+
+function saveOutlierEdit(){
+  if(!_editingOutlier)return;
+  const item=_editingOutlier;
+  const isDistance=item.sheet==='Travel'&&item.anomalyType==='distance_high';
+  const isTime=item.sheet==='Travel'&&item.anomalyType==='time_high';
+  let payload,start=null,end=null,smrStart=null,smrEnd=null,departure='',arrival='';
+  if(isTime){
+    departure=document.getElementById('editDeparture').value.trim();
+    arrival=document.getElementById('editArrival').value.trim();
+    const timeMinutes=value=>{const match=String(value).match(/^(\d{2}):(\d{2})$/);return match?Number(match[1])*60+Number(match[2]):null};
+    const depMinutes=timeMinutes(departure),arrMinutes=timeMinutes(arrival);
+    if(depMinutes===null||arrMinutes===null){outlierEditError('Enter valid Departure and Arrival times.');return;}
+    let tripMinutes=arrMinutes-depMinutes;if(tripMinutes<0)tripMinutes+=1440;
+    if(tripMinutes<=0){outlierEditError('Departure and Arrival must produce a valid trip duration.');return;}
+    const tripHours=tripMinutes/60;
+    if(Number(item.limit)>0&&tripHours>Number(item.limit)){outlierEditError(`The corrected trip is still ${r1(tripHours)} hours, above the ${item.limit}-hour limit.`);return;}
+    payload={sheet:item.sheet,rowNumber:item.rowNumber,evdtrNo:item.evdtrNo||'',equipment:item.equipment,date:item.date,metric:'TIME',departureReading:departure,arrivalReading:arrival,expectedDepartureReading:item.departureReading,expectedArrivalReading:item.arrivalReading,expectedTimeReading:item.timeReading,anomalyType:item.anomalyType||'',limit:item.limit,flagKey:item.flagKey||'',reason:item.reason||''};
+  }else{
+    const readNumber=id=>{const text=document.getElementById(id).value.trim().replace(/,/g,'');return {text,value:Number(text)}};
+    const startInput=readNumber(isDistance?'editOdoStart':'editStartReading');
+    const endInput=readNumber(isDistance?'editOdoEnd':'editEndReading');
+    start=startInput.value;end=endInput.value;
+    if(!startInput.text||!endInput.text||!Number.isFinite(start)||!Number.isFinite(end)){
+      outlierEditError(`Enter valid numeric Start and End ${isDistance?'ODO':item.metric} readings.`);return;
+    }
+    if(start<0||end<0){outlierEditError('Meter readings cannot be negative.');return;}
+    if(end<start){outlierEditError(`End ${isDistance?'ODO':item.metric} cannot be lower than Start ${isDistance?'ODO':item.metric}. Verify both values.`);return;}
+    if(isDistance){
+      const smrStartInput=readNumber('editSmrStart'),smrEndInput=readNumber('editSmrEnd');
+      smrStart=smrStartInput.value;smrEnd=smrEndInput.value;
+      if(!smrStartInput.text||!smrEndInput.text||!Number.isFinite(smrStart)||!Number.isFinite(smrEnd)){
+        outlierEditError('Enter valid numeric Start and End SMR readings.');return;
+      }
+      if(smrStart<0||smrEnd<0){outlierEditError('SMR readings cannot be negative.');return;}
+      if(smrEnd<smrStart){outlierEditError('End SMR cannot be lower than Start SMR. Verify both values.');return;}
+    }
+    payload={sheet:item.sheet,rowNumber:item.rowNumber,evdtrNo:item.evdtrNo||'',equipment:item.equipment,date:item.date,metric:item.metric,startReading:start,endReading:end,expectedStartReading:isDistance?item.odoStartReading:item.startReading,expectedEndReading:isDistance?item.odoEndReading:item.endReading,smrStartReading:smrStart,smrEndReading:smrEnd,expectedSmrStartReading:item.smrStartReading,expectedSmrEndReading:item.smrEndReading,expectedDistance:item.distanceReading,anomalyType:item.anomalyType||'',limit:item.limit,previousReading:item.previousReading,previousSheet:item.previousSheet||'',previousRowNumber:item.previousRowNumber||'',flagKey:item.flagKey||'',reason:item.reason||''};
+  }
+  if(!document.getElementById('editVerified').checked){outlierEditError('Confirm that you checked the signed/source EVDTR before saving.');return;}
+
+  const save=document.getElementById('saveOutlierBtn');save.disabled=true;save.textContent='Saving…';
+  document.getElementById('editError').classList.remove('show');
+
+
+    if(isTime){item.departureReading=departure;item.arrivalReading=arrival;}else{item.startReading=start;item.endReading=end;if(isDistance){item.odoStartReading=start;item.odoEndReading=end;item.smrStartReading=smrStart;item.smrEndReading=smrEnd;}}item.status='fixed';item.fixedDate=fmt(new Date());
+    closeOutlierEditor();buildOdoSmrOutliers(window._odoSmrData||[]);showToast('Demo correction applied for this session only.');
+  
+}
+
+// ── ODO / SMR OUTLIER PANEL ────────────────────
+window._odoSmrData = [];
+
+function buildOdoSmrOutliers(outliers) {
+  window._odoSmrData = outliers || [];
+  const odoEl   = document.getElementById('odoOutlierPanel');
+  const smrEl   = document.getElementById('smrOutlierPanel');
+  const odoSum  = document.getElementById('odoSummary');
+  const smrSum  = document.getElementById('smrSummary');
+  const showOdo = document.getElementById('odoShowFixed');
+  const showSmr = document.getElementById('smrShowFixed');
+
+  const odoAll = (outliers || []).filter(o => o.metric === 'ODO' || o.metric === 'TIME');
+  const smrAll = (outliers || []).filter(o => o.metric === 'SMR');
+
+  function summaryHtml(rows) {
+    const active = rows.filter(r => r.status === 'active').length;
+    const fixed  = rows.filter(r => r.status === 'fixed').length;
+    const total  = rows.length;
+    if (!total) return '';
+    return `
+      <span class="odo-sum-pill active">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        ${active} Active
+      </span>
+      <span class="odo-sum-pill fixed">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>
+        ${fixed} Fixed
+      </span>
+      <span class="odo-sum-pill total">${total} Total</span>`;
+  }
+
+  if (odoSum) odoSum.innerHTML = summaryHtml(odoAll);
+  if (smrSum) smrSum.innerHTML = summaryHtml(smrAll);
+
+  function renderRows(el, allRows, unit, showFixedEl) {
+    if (!el) return;
+    const showFixed = showFixedEl ? showFixedEl.checked : true;
+    const rows = showFixed ? allRows : allRows.filter(r => r.status === 'active');
+
+    if (!rows.length) {
+      const hasFixed = allRows.some(r => r.status === 'fixed');
+      if (!showFixed && hasFixed) {
+        el.innerHTML = `<div style="text-align:center;padding:18px;color:var(--t3);font-size:12px">
+          No active outliers — ${allRows.filter(r=>r.status==='fixed').length} fixed item(s) hidden. Enable "Show Fixed" to view.
+        </div>`;
+      } else {
+        el.innerHTML = '<div class="out-clear"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg> No outliers detected</div>';
+      }
+      return;
+    }
+
+    el.innerHTML = rows.map(o => {
+      const isFixed   = o.status === 'fixed';
+      const rowCls    = isFixed ? 'odo-outrow fixed' : 'odo-outrow';
+      const badgeBg   = o.metric === 'TIME' ? '#dbeafe' : o.metric === 'ODO' ? '#fef3c7' : '#ede9fe';
+      const badgeFg   = o.metric === 'TIME' ? '#1d4ed8' : o.metric === 'ODO' ? '#92400e'  : '#5b21b6';
+      const jumpColor = isFixed ? '#15803d' : '#b45309';
+
+      const statusBadge = isFixed
+        ? `<span class="status-badge-fixed"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> Fixed</span>`
+        : `<span class="status-badge-active"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg> Active</span>`;
+
+      const isDistanceOutlier=o.anomalyType==='distance_high';
+      const isTimeOutlier=o.anomalyType==='time_high'||o.metric==='TIME';
+      const rowUnit=isTimeOutlier?'hrs':unit;
+      const readingParts=[];
+      if(isDistanceOutlier){
+        if(o.odoStartReading!==undefined&&o.odoStartReading!==null&&o.odoStartReading!=='')readingParts.push(`Start ODO ${h(o.odoStartReading)}`);
+        if(o.odoEndReading!==undefined&&o.odoEndReading!==null&&o.odoEndReading!=='')readingParts.push(`End ODO ${h(o.odoEndReading)}`);
+        if(o.smrStartReading!==undefined&&o.smrStartReading!==null&&o.smrStartReading!=='')readingParts.push(`Start SMR ${h(o.smrStartReading)}`);
+        if(o.smrEndReading!==undefined&&o.smrEndReading!==null&&o.smrEndReading!=='')readingParts.push(`End SMR ${h(o.smrEndReading)}`);
+      }else if(isTimeOutlier){
+        if(o.departureReading)readingParts.push(`Departure ${h(o.departureReading)}`);
+        if(o.arrivalReading)readingParts.push(`Arrival ${h(o.arrivalReading)}`);
+      }else{
+        if(o.startReading!==undefined&&o.startReading!==null&&o.startReading!=='')readingParts.push(`Start ${h(o.startReading)}`);
+        if(o.endReading!==undefined&&o.endReading!==null&&o.endReading!=='')readingParts.push(`End ${h(o.endReading)}`);
+      }
+      if(o.previousReading!==undefined&&o.previousReading!==null&&o.previousReading!=='')readingParts.push(`Previous end ${h(o.previousReading)}`);
+      const readingLine=readingParts.length?`<div style="margin-top:2px;font-family:'DM Mono',monospace;font-size:10px;color:var(--t2)">${readingParts.join(' · ')}</div>`:'';
+      const reason=o.reason?h(o.reason):`Reading change exceeded the configured ${o.metric} limit.`;
+      const sourceLine=!isFixed&&o.rowNumber?`<div style="margin-top:2px;color:var(--t2)"><strong>Source:</strong> ${h(o.sheet)} row ${h(o.rowNumber)}${o.suspectField?` · <strong>Suspect:</strong> ${h(o.suspectField)}`:''}</div>`:'';
+      const actionLine=!isFixed&&o.recommendedAction?`<div style="margin-top:3px;color:var(--t2)"><strong>Check:</strong> ${h(o.recommendedAction)}</div>`:'';
+      const subLine = isFixed
+        ? `Fixed on ${h(o.fixedDate)} &mdash; was flagged for ${o.daysFlagged} day${o.daysFlagged!==1?'s':''}`
+        : `<strong style="color:${o.severity==='critical'?'#dc2626':'#b45309'}">${reason}</strong>${sourceLine}${readingLine}${actionLine}<div style="margin-top:3px">${Number(o.limit)>0?`Limit ${h(o.limit)} ${rowUnit}${Number(o.exceeds)>0?` · exceeds by ${h(o.exceeds)} ${rowUnit}`:''} · `:''}flagged ${o.daysFlagged} day${o.daysFlagged!==1?'s':''} ago</div>`;
+      const rightValue=Number(o.jump)>0?`${h(o.jump)} ${rowUnit}`:'Review';
+      const editIndex=window._odoSmrData.indexOf(o);
+      const editButton=_activePage==='outliers'&&!isFixed&&o.rowNumber&&editIndex>=0?`<button type="button" class="outlier-edit-btn" onclick="openOutlierEditor(${editIndex})"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></svg>${isDistanceOutlier?'Review 4 readings':isTimeOutlier?'Review times':'Edit reading'}</button>`:'';
+
+      return `<div class="${rowCls}">
+        <div class="odo-outequip">${h(o.equipment)}</div>
+        <div style="flex:1;font-size:12px;color:var(--t1)">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-weight:500">${h(o.date)}</span>
+            <span class="odo-badge" style="background:${badgeBg};color:${badgeFg}">${isDistanceOutlier?'DISTANCE':isTimeOutlier?'TIME':h(o.metric)}</span>
+            ${o.anomalyType&&!isFixed?`<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3)">${h(String(o.anomalyType).replace(/_/g,' '))}</span>`:''}
+            ${o.sheet ? `<span style="font-size:10px;color:var(--t3)">[${h(o.sheet)}]</span>` : ''}
+            ${o.evdtrNo ? `<span style="font-size:10px;color:var(--t3);font-family:'DM Mono',monospace">${h(o.evdtrNo)}</span>` : ''}
+            ${statusBadge}
+          </div>
+          <div style="font-size:11px;color:var(--t3);margin-top:3px">${subLine}</div>
+        </div>
+        <div style="font-size:12px;font-weight:600;color:${jumpColor};white-space:nowrap;text-align:right">${rightValue}${editButton}</div>
+      </div>`;
+    }).join('');
+  }
+
+  renderRows(odoEl, odoAll, 'km',  showOdo);
+  renderRows(smrEl, smrAll, 'hrs', showSmr);
+}
+
+// ── UTILIZE ACTIVITY SUMMARY ───────────────────
+function buildUtilizeActivity(activityData){
+  const el = document.getElementById('utilizeDataPanel'); if(!el) return;
+
+  const prefixMeta = {
+    TT:  { label:'Trailer Truck',  cls:'tt',  color:'var(--blue)',   bg:'var(--bluepale)' },
+    SV:  { label:'Service Vehicle',cls:'sv',  color:'var(--green)',  bg:'var(--greenpale)' },
+    CT:  { label:'Cargo Truck',    cls:'ct',  color:'var(--amber)',  bg:'var(--amberpale)' },
+    LTR: { label:'Lube Truck',     cls:'ltr', color:'var(--purple)', bg:'var(--purplepale)' }
+  };
+
+  const hasAny = Object.values(activityData).some(arr => arr && arr.length > 0);
+  if(!hasAny){
+    el.innerHTML='<div class="empty">No Utilize records found in selected range</div>';
+    return;
+  }
+
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;padding:4px 0">
+    ${['TT','SV','CT','LTR'].map(prefix => {
+      const meta = prefixMeta[prefix];
+      const rows = (activityData[prefix] || []);
+      const maxCount = rows.length ? rows[0].count : 1;
+      const totalHrs = rows.reduce((s,r)=>s+(r.totalHrs||0),0);
+      const totalEvents = rows.reduce((s,r)=>s+(r.count||0),0);
+
+      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--sh)">
+        <!-- Header -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div class="eqbadge ${meta.cls}" style="width:38px;height:38px;font-size:12px">${prefix}</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--t1)">${meta.label}</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:1px">${totalEvents} events · ${r1(totalHrs)} hrs total</div>
+          </div>
+        </div>
+
+        ${!rows.length
+          ? `<div style="text-align:center;padding:18px;color:var(--t3);font-size:12px">No records in range</div>`
+          : rows.slice(0,8).map((r,i) => {
+              const barPct = Math.round((r.count / maxCount) * 100);
+              const rankColor = i===0 ? meta.color : 'var(--t3)';
+              return `<div style="margin-bottom:10px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+                  <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1">
+                    <span style="font-size:10px;font-weight:700;color:${rankColor};min-width:14px">#${i+1}</span>
+                    <span style="font-size:12px;font-weight:${i===0?'600':'400'};color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.desc}">${r.desc}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
+                    <span style="font-size:11px;font-weight:600;color:var(--t2)">${r.count}×</span>
+                    <span style="font-size:10px;color:var(--t3);white-space:nowrap">${r.totalHrs} hrs</span>
+                  </div>
+                </div>
+                <div style="height:4px;background:var(--bg);border-radius:2px;overflow:hidden">
+                  <div style="height:4px;border-radius:2px;background:${meta.color};width:${barPct}%;opacity:${i===0?1:0.45+i*-0.04}"></div>
+                </div>
+              </div>`;
+            }).join('')
+        }
+        ${rows.length > 8 ? `<div style="font-size:11px;color:var(--t3);text-align:center;margin-top:6px">+${rows.length-8} more activities</div>` : ''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+
+// ── WAIT MONITORING ────────────────────────────
+let _waitData = {};
+function waitTabSwitch(btn, type, prefix){
+  // Only toggle tabs within the same card
+  btn.closest('.wait-prefix-tabs').querySelectorAll('.wait-tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  buildWaitTable(_waitData, type, prefix);
+}
+
+function buildWaitTable(waitData, type, prefix){
+  _waitData = waitData;
+  const wrapId = type === 'load' ? 'waitLoadTableWrap' : 'waitUnloadTableWrap';
+  const wrap = document.getElementById(wrapId); if(!wrap) return;
+  const rows = ((waitData[type]||{})[prefix]||[]);
+
+  // Update subtitle with total units & hours
+  const subId = type === 'load' ? 'wloadSub' : 'wunloadSub';
+  const subEl = document.getElementById(subId);
+  if(subEl && rows.length){
+    const totalHrs = rows.reduce((s,r)=>s+(r.totalWaitHrs||0),0);
+    const unitCount = new Set(rows.map(r=>r.equipment)).size;
+    subEl.textContent = `${unitCount} unit${unitCount!==1?'s':''} · ${r1(totalHrs)} total wait hrs`;
+  } else if(subEl){
+    subEl.textContent = type==='load'?'Equipment waiting at loading area':'Equipment queued at unloading area';
+  }
+
+  if(!rows.length){
+    wrap.innerHTML=`<div class="empty">No ${type==='load'?'load':'unload'} wait records for ${prefix} in this range</div>`;
+    return;
+  }
+  const pill = h => {
+    const cls = h < 1 ? 'wait-low' : h < 3 ? 'wait-mid' : 'wait-high';
+    return `<span class="wait-hrs ${cls}">${h} hrs</span>`;
+  };
+  wrap.innerHTML = `<div class="tscroll"><table class="wtable">
+    <thead><tr>
+      <th>Equipment</th><th>Project Code</th><th>Project Name</th><th>Avg Wait</th><th>Total Wait</th><th>Events</th>
+    </tr></thead>
+    <tbody>
+      ${rows.slice(0,20).map(r=>`<tr>
+        <td style="font-weight:600;color:var(--t1);font-family:'DM Mono',monospace;font-size:11px">${r.equipment}</td>
+        <td style="color:var(--blue);font-weight:600;font-size:11px;white-space:nowrap">${r.projectCode}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--t2)" title="${r.projectDesc}">${r.projectDesc&&r.projectDesc!==r.projectCode?r.projectDesc:'—'}</td>
+        <td>${pill(r.avgWaitHrs)}</td>
+        <td style="font-weight:600;color:var(--t2)">${r.totalWaitHrs} hrs</td>
+        <td style="color:var(--t3)">${r.count} event${r.count!==1?'s':''}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ── HTML HELPERS ───────────────────────────────
+function leg(){
+  return [['#16a34a','Utilize'],['#d97706','Idle'],['#1a6fc4','Travel'],['#dc2626','Breakdown']]
+    .map(([c,l])=>`<span class="legitem"><span class="legdot" style="background:${c}"></span>${l}</span>`).join('');
+}
+
+function eqCard(prefix,cls,label,cvId,nId){
+  return `<div class="ccard">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div class="eqbadge ${cls}">${prefix}</div>
+      <div><div class="eqname">${label}</div><div class="eqcount" id="${nId}">Loading…</div></div>
+    </div>
+    <div class="cwrap" style="height:180px">
+      <div class="covl" id="${cvId}Ovl"><div class="msp"></div><span class="covlabel">Building chart…</span></div>
+      <canvas id="${cvId}"></canvas>
+    </div>
+  </div>`;
+}
+
+function kc(label,color,path,val,unit,sub){
+  const small = String(val).length > 5;
+  return `<div class="kcard ${color}">
+    <div class="kicon ${color}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="${path}"/></svg></div>
+    <div class="klabel">${label}</div>
+    <div class="kval${small?' sm':''}">${val}${unit?` <span style="font-size:12px;font-weight:400;color:var(--t3)">${unit}</span>`:''}</div>
+    ${sub?`<div class="ksub">${sub}</div>`:''}
+  </div>`;
+}
+
+function sc(label,color,count,total,desc){
+  const pct = total>0?Math.round(count/total*100):0;
+  return `<div class="scard">
+    <div class="srow"><div class="sdot" style="background:${color}"></div><div class="slabel">${label}</div></div>
+    <div class="scount" style="color:${color}">${count}</div>
+    <div class="ssub">${desc}</div>
+    <div class="sbar"><div class="sbarfill" style="width:${pct}%;background:${color}"></div></div>
+    <div class="spct">${pct}% of fleet</div>
+  </div>`;
+}
+
+function rateLabel(v){ return v>=85?'✓ Good':v>=70?'⚠ Fair':'↓ Low'; }
+function r1(v){ return Math.round((v||0)*10)/10; }
+function recCounts(d){ const c=d.rawCounts||{}; const q=_lastQuery||{}; const range = (q.startDate&&q.endDate) ? ` &middot; queried ${q.startDate} to ${q.endDate}` : ''; return `T:${c.travel||0} U:${c.utilize||0} I:${c.idle||0} B:${c.breakdown||0} WL:${c.waitLoad||0} WU:${c.waitUnload||0} records${range}`; }
+
+// ── WAIT PAGE ──────────────────────────────────
+let _wMode = 'load', _wPrefix = 'TT', _wData = {};
+
+function renderWaitPage(waitData){
+  _wData = waitData;
+  const wp = document.getElementById('app');
+  wp.innerHTML = `
+    <!-- PAGE TABS -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div class="wpage-tabs" id="wModeTabs">
+        <button class="wpage-tab on" onclick="wSwitchMode(this,'load')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12M8 11l4 4 4-4M20 21H4"/></svg>
+          Waiting to Load
+        </button>
+        <button class="wpage-tab unload" onclick="wSwitchMode(this,'unload')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 21V9M8 13l4-4 4 4M20 3H4"/></svg>
+          Waiting to Unload
+        </button>
+      </div>
+      <div class="wait-prefix-tabs" id="wPrefixTabs">
+        <button class="wait-tab on" onclick="wSwitchPrefix(this,'TT')">TT</button>
+        <button class="wait-tab"    onclick="wSwitchPrefix(this,'SV')">SV</button>
+        <button class="wait-tab"    onclick="wSwitchPrefix(this,'CT')">CT</button>
+        <button class="wait-tab"    onclick="wSwitchPrefix(this,'LTR')">LTR</button>
+      </div>
+    </div>
+
+    <!-- SUMMARY KPI STRIP -->
+    <div class="wkpi-grid" id="wKpiStrip"></div>
+
+    <!-- EQ UNIT CARDS -->
+    <div>
+      <div class="shdr">
+        <div class="stitle" id="wEqTitle">Equipment Hours</div>
+        <span style="font-size:11px;color:var(--t3)" id="wEqSub"></span>
+      </div>
+      <div class="weq-grid" id="wEqCards"></div>
+    </div>
+
+    <!-- LOG TABLE -->
+    <div class="tcard">
+      <div class="shdr" style="margin-bottom:12px">
+        <div class="stitle" id="wLogTitle">Event Log</div>
+        <span style="font-size:11px;color:var(--t3)" id="wLogSub"></span>
+      </div>
+      <div class="tscroll" id="wLogTable"></div>
+    </div>
+  `;
+  wRefresh();
+}
+
+function wSwitchMode(btn, mode){
+  _wMode = mode;
+  document.querySelectorAll('#wModeTabs .wpage-tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  wRefresh();
+}
+
+function wSwitchPrefix(btn, prefix){
+  _wPrefix = prefix;
+  document.querySelectorAll('#wPrefixTabs .wait-tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  wRefresh();
+}
+
+function wRefresh(){
+  const mode   = _wMode;
+  const prefix = _wPrefix;
+  const rows   = ((_wData[mode]||{})[prefix]||[]);
+  const isLoad = mode === 'load';
+  const color  = isLoad ? 'var(--amber)' : 'var(--purple)';
+  const kpiCls = isLoad ? 'amber' : 'purple';
+  const barCls = isLoad ? 'background:var(--amber)' : 'background:var(--purple)';
+
+  const totalHrs  = rows.reduce((s,r)=>s+(r.totalWaitHrs||0),0);
+  const totalEvts = rows.reduce((s,r)=>s+(r.count||0),0);
+  const avgWait   = totalEvts>0 ? totalHrs/totalEvts : 0;
+  const maxRow    = rows.reduce((a,b)=>(b.totalWaitHrs>a.totalWaitHrs?b:a),{totalWaitHrs:0,equipment:'—'});
+  const unitCount = new Set(rows.map(r=>r.equipment)).size;
+
+  // KPI Strip
+  document.getElementById('wKpiStrip').innerHTML=`
+    <div class="wkpi ${kpiCls}"><div class="wkpi-lbl">Total Units</div><div class="wkpi-val">${unitCount}</div><div class="wkpi-sub">${prefix} with wait records</div></div>
+    <div class="wkpi ${kpiCls}"><div class="wkpi-lbl">Total Wait Hours</div><div class="wkpi-val">${r1(totalHrs)} <span style="font-size:12px;font-weight:400;color:var(--t3)">hrs</span></div><div class="wkpi-sub">All ${prefix} combined</div></div>
+    <div class="wkpi ${kpiCls}"><div class="wkpi-lbl">Avg Wait / Event</div><div class="wkpi-val">${r1(avgWait)} <span style="font-size:12px;font-weight:400;color:var(--t3)">hrs</span></div><div class="wkpi-sub">Per ${isLoad?'load':'unload'} event</div></div>
+    <div class="wkpi ${kpiCls}"><div class="wkpi-lbl">Highest Unit</div><div class="wkpi-val" style="font-size:16px">${maxRow.equipment||'—'}</div><div class="wkpi-sub">${r1(maxRow.totalWaitHrs)} hrs total</div></div>
+    <div class="wkpi ${kpiCls}"><div class="wkpi-lbl">Total Events</div><div class="wkpi-val">${totalEvts}</div><div class="wkpi-sub">${isLoad?'Load':'Unload'} wait events</div></div>
+  `;
+
+  // Section header
+  document.getElementById('wEqTitle').innerHTML=`<span style="width:3px;height:13px;background:${color};border-radius:2px;display:inline-block;margin-right:7px"></span>${isLoad?'Waiting to Load':'Waiting to Unload'} — ${prefix} Units`;
+  document.getElementById('wEqSub').textContent=`${rows.length} unit${rows.length!==1?'s':''} · ${r1(totalHrs)} hrs total`;
+
+  // EQ unit cards
+  const maxHrs = rows.reduce((m,r)=>Math.max(m,r.totalWaitHrs||0),0.001);
+  const badgeCls = prefix.toLowerCase();
+  const eqCards = document.getElementById('wEqCards');
+  if(!rows.length){
+    eqCards.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--t3);font-size:13px">No ${isLoad?'load':'unload'} wait records for ${prefix} in this date range</div>`;
+  } else {
+    eqCards.innerHTML=rows.map(r=>{
+      const pct=Math.round(((r.totalWaitHrs||0)/maxHrs)*100);
+      const avgC=r.avgWaitHrs<1?'wait-low':r.avgWaitHrs<3?'wait-mid':'wait-high';
+      return `<div class="weq-card">
+        <div class="weq-head">
+          <div class="weq-badge ${badgeCls}">${prefix}</div>
+          <div style="flex:1;min-width:0">
+            <div class="weq-name">${r.equipment}</div>
+            <div class="weq-proj" title="${r.projectDesc||r.projectCode}">${r.projectDesc&&r.projectDesc!==r.projectCode?r.projectDesc:r.projectCode}</div>
+          </div>
+        </div>
+        <div class="weq-stats">
+          <div class="weq-stat"><div class="weq-stat-lbl">Total Wait</div><div class="weq-stat-val">${r1(r.totalWaitHrs)}<span style="font-size:10px;font-weight:400;color:var(--t3)"> hrs</span></div></div>
+          <div class="weq-stat"><div class="weq-stat-lbl">Avg / Event</div><div class="weq-stat-val">${r1(r.avgWaitHrs)}<span style="font-size:10px;font-weight:400;color:var(--t3)"> hrs</span></div></div>
+        </div>
+        <div style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ${r.count} event${r.count!==1?'s':''}
+          &nbsp;·&nbsp;<span class="wait-hrs ${avgC}">${r1(r.avgWaitHrs)} hrs avg</span>
+        </div>
+        <div class="weq-bar"><div class="weq-bar-fill" style="${barCls};width:${pct}%"></div></div>
+      </div>`;
+    }).join('');
+  }
+
+  // Log table
+  document.getElementById('wLogTitle').textContent=`${isLoad?'Wait to Load':'Wait to Unload'} — Full Log`;
+  document.getElementById('wLogSub').textContent=`${totalEvts} event${totalEvts!==1?'s':''} · ${prefix} equipment`;
+
+  const pill=h=>{const c=h<1?'wait-low':h<3?'wait-mid':'wait-high';return `<span class="wait-hrs ${c}">${r1(h)} hrs</span>`;};
+  document.getElementById('wLogTable').innerHTML = !rows.length
+    ? `<div style="text-align:center;padding:28px;color:var(--t3);font-size:13px">No records found</div>`
+    : `<table class="wtable">
+    <thead><tr>
+      <th>Equipment</th><th>Project Code</th><th>Project Name</th>
+      <th>Total Wait Hrs</th><th>Avg / Event</th><th>Events</th><th>Share of Total</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r=>{
+        const share=totalHrs>0?Math.round((r.totalWaitHrs/totalHrs)*100):0;
+        return `<tr>
+          <td style="font-weight:600;color:var(--t1);font-family:'DM Mono',monospace;font-size:12px">${r.equipment}</td>
+          <td style="color:var(--blue);font-weight:600;font-size:12px">${r.projectCode}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:12px" title="${r.projectDesc}">${r.projectDesc&&r.projectDesc!==r.projectCode?r.projectDesc:'—'}</td>
+          <td style="font-weight:700;color:var(--t1)">${r1(r.totalWaitHrs)} <span style="font-size:11px;font-weight:400;color:var(--t3)">hrs</span></td>
+          <td>${pill(r.avgWaitHrs)}</td>
+          <td style="color:var(--t2)">${r.count} event${r.count!==1?'s':''}</td>
+          <td><div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;min-width:60px;height:5px;background:var(--bg);border-radius:2px;overflow:hidden">
+              <div style="height:5px;border-radius:2px;${barCls};width:${share}%"></div>
+            </div>
+            <span style="font-size:11px;color:var(--t3);min-width:28px">${share}%</span>
+          </div></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--bg)">
+        <td colspan="3" style="font-weight:600;color:var(--t2);font-size:12px">TOTAL — ${prefix} ${isLoad?'Load':'Unload'}</td>
+        <td style="font-weight:700;color:var(--t1)">${r1(totalHrs)} <span style="font-size:11px;font-weight:400;color:var(--t3)">hrs</span></td>
+        <td style="font-weight:600;color:var(--t2)">${r1(avgWait)} hrs avg</td>
+        <td style="font-weight:600;color:var(--t2)">${totalEvts} events</td>
+        <td style="font-weight:600;color:var(--t2)">100%</td>
+      </tr>
+    </tfoot>
+  </table>`;
+}
+
+// ── EXPORT ─────────────────────────────────────
+function doExport(){
+  if(!fleetData) return;
+  const rows = [['Equipment','Date','Type','Hours','Description']];
+  (fleetData.evdtrLog||fleetData.recentRecords||[]).forEach(r=>rows.push([r.equipment,r.date,r.type,r1(r.hours),r.description]));
+  const csv = rows.map(r=>r.map(c=>'"'+(c||'').toString().replace(/"/g,'""')+'"').join(',')).join('\n');
+  Object.assign(document.createElement('a'),{href:'data:text/csv;charset=utf-8,'+encodeURIComponent(csv),download:'evdtr_'+fmt(new Date())+'.csv'}).click();
+}
+
+// ── MOCK DATA ──────────────────────────────────
+let _demoSeed=null;
+function demoFilteredData(params){
+  if(!_demoSeed) _demoSeed=mockData();
+  const d=structuredClone(_demoSeed);
+  const selected=Array.isArray(params.equipment)?params.equipment:null;
+  const start=params.startDate||'';
+  const end=params.endDate||'';
+  const match=r=>(!selected||selected.includes(r.equipment))&&(!start||!r.date||r.date>=start)&&(!end||!r.date||r.date<=end);
+  d.recentRecords=(d.recentRecords||[]).filter(match);
+  d.evdtrLog=d.recentRecords;
+  d.outliers=(d.outliers||[]).filter(match);
+  d.odoSmrOutliers=(d.odoSmrOutliers||[]).filter(match);
+  d.alerts=(d.alerts||[]).filter(r=>!selected||selected.includes(r.equipment));
+  d.trends=(d.trends||[]).filter(r=>(!start||r.date>=start)&&(!end||r.date<=end));
+  if(selected){
+    d.kpis.totalFleet=selected.length;
+    d.kpis.activeUnits=Math.min(selected.length,d.kpis.activeUnits);
+    for(const [group,units] of Object.entries(d.equipTypeData||{})){
+      for(const id of Object.keys(units))if(!selected.includes(id))delete units[id];
+    }
+    d.breakdownStats=(d.breakdownStats||[]).filter(r=>selected.includes(r.equipment));
+  }
+  return d;
+}
+
+function mockData(){
+  const equipment=['TT-001','TT-002','TT-003','SV-001','SV-002','CT-001','CT-002','CT-003','LTR-001'];
+  const trends=[];
+  for(let i=29;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    trends.push({date:fmt(d),utilize:rnd(2,8),idle:rnd(.5,4),travel:rnd(.5,3),breakdown:Math.random()>.8?rnd(0,2):0});
+  }
+  const rh=(a,b)=>r1(Math.random()*(b-a)+a);
+  const data = {
+    success:true,
+    equipment,
+    rawCounts:{travel:14,utilize:28,idle:12,breakdown:4},
+    kpis:{totalFleet:9,activeUnits:7,travelingUnits:2,utilizingUnits:5,idleUnits:1,breakdownUnits:1,
+      utilizationRate:62.4,idleRate:18.7,travelRate:12.1,breakdownRate:11.1,availabilityRate:88.9,
+      totalUtilizeHrs:248.3,totalIdleHrs:74.5,totalTravelHrs:48.2,totalBreakdownHrs:22.8,
+      totalDistance:1240,travelTrips:14,breakdownEvents:4},
+    trends,
+    equipTypeData:{
+      TT:{'TT-001':{utilize:rh(60,120),idle:rh(10,30),travel:rh(15,40),breakdown:rh(0,10)},
+          'TT-002':{utilize:rh(40,100),idle:rh(15,35),travel:rh(10,30),breakdown:rh(0,15)},
+          'TT-003':{utilize:rh(50,110),idle:rh(8,20), travel:rh(12,35),breakdown:rh(0,5)}},
+      SV:{'SV-001':{utilize:rh(30,80),idle:rh(20,50),travel:rh(20,55),breakdown:rh(0,8)},
+          'SV-002':{utilize:rh(25,70),idle:rh(18,45),travel:rh(18,50),breakdown:rh(0,12)}},
+      CT:{'CT-001':{utilize:rh(55,115),idle:rh(10,25),travel:rh(10,30),breakdown:rh(0,8)},
+          'CT-002':{utilize:rh(45,95), idle:rh(12,28),travel:rh(8,25), breakdown:rh(0,20)},
+          'CT-003':{utilize:rh(60,100),idle:rh(8,22), travel:rh(12,28),breakdown:rh(0,6)}},
+      LTR:{'LTR-001':{utilize:rh(20,60),idle:rh(25,60),travel:rh(30,70),breakdown:rh(0,5)}}
+    },
+    siteData:[
+      {site:'PROJ-NLEX-01', code:'PROJ-NLEX-01', desc:'North Luzon Expressway Extension',    trips:8,equipmentCount:4,totalDistance:420},
+      {site:'PROJ-SLEX-02', code:'PROJ-SLEX-02', desc:'South Luzon Expressway Phase 2',      trips:6,equipmentCount:3,totalDistance:380},
+      {site:'PROJ-C5-03',   code:'PROJ-C5-03',   desc:'C5 Road Widening Project',            trips:5,equipmentCount:3,totalDistance:210},
+      {site:'PROJ-CAVEX-04',code:'PROJ-CAVEX-04',desc:'Cavite Expressway Link',              trips:4,equipmentCount:2,totalDistance:190},
+      {site:'PROJ-TPLEX-05',code:'PROJ-TPLEX-05',desc:'TPLEX Segment 5 Earthworks',         trips:3,equipmentCount:2,totalDistance:156},
+      {site:'MAIN-DEPOT',   code:'MAIN-DEPOT',   desc:'Main Equipment Depot',               trips:2,equipmentCount:5,totalDistance:44}
+    ],
+    breakdownStats:[
+      {equipment:'CT-002',breakdownCount:4,totalRepairHrs:18.5,mttr:4.6,mtbf:72},
+      {equipment:'TT-002',breakdownCount:2,totalRepairHrs:8.0, mttr:4.0,mtbf:168},
+      {equipment:'TT-001',breakdownCount:1,totalRepairHrs:3.5, mttr:3.5,mtbf:0},
+      {equipment:'SV-002',breakdownCount:1,totalRepairHrs:4.0, mttr:4.0,mtbf:0}
+    ],
+    alerts:[
+      {type:'danger', message:'CT-002 has 4 breakdown events — check maintenance',equipment:'CT-002'},
+      {type:'warning',message:'SV-001 idle for 28.4 hrs — consider redeployment', equipment:'SV-001'},
+      {type:'info',   message:'TT-001 logged 210 utilization hrs — verify schedule',equipment:'TT-001'},
+      {type:'warning',message:'LTR-001 idle for 25.1 hrs',                          equipment:'LTR-001'}
+    ],
+    recentRecords:[
+      {type:'Travel',   evdtrNo:'EVDTR-DEMO-0142',equipment:'TT-001', date:'2026-10-15',description:'PROJ-NLEX-01 → MAIN-DEPOT',      hours:2.4},
+      {type:'Utilize',  evdtrNo:'EVDTR-DEMO-0141',equipment:'CT-001', date:'2026-10-15',description:'Bridge Construction Phase 2',    hours:8.0},
+      {type:'Breakdown',evdtrNo:'EVDTR-DEMO-0140',equipment:'CT-002', date:'2026-10-14',description:'Hydraulic system failure',       hours:4.5},
+      {type:'Idle',     evdtrNo:'EVDTR-DEMO-0139',equipment:'SV-001', date:'2026-10-14',description:'Standby at depot',               hours:12.0},
+      {type:'Travel',   evdtrNo:'EVDTR-DEMO-0138',equipment:'TT-002', date:'2026-10-13',description:'MAIN-DEPOT → PROJ-SLEX-02',     hours:1.8},
+      {type:'Utilize',  evdtrNo:'EVDTR-DEMO-0137',equipment:'SV-002', date:'2026-10-13',description:'Excavation support works',      hours:7.5},
+      {type:'Travel',   evdtrNo:'EVDTR-DEMO-0136',equipment:'CT-003', date:'2026-10-12',description:'PROJ-C5-03 → PROJ-CAVEX-04',   hours:3.1},
+      {type:'Utilize',  evdtrNo:'EVDTR-DEMO-0135',equipment:'LTR-001',date:'2026-10-12',description:'Lubrication service run',       hours:6.5}
+    ],
+    avgTripHours:{
+      TT:[
+        {origin:'MAIN-DEPOT',   dest:'PROJ-NLEX-01',  route:'MAIN-DEPOT → PROJ-NLEX-01',  avgHrs:2.4, tripCount:5},
+        {origin:'PROJ-NLEX-01', dest:'MAIN-DEPOT',    route:'PROJ-NLEX-01 → MAIN-DEPOT',  avgHrs:2.1, tripCount:5},
+        {origin:'MAIN-DEPOT',   dest:'PROJ-SLEX-02',  route:'MAIN-DEPOT → PROJ-SLEX-02',  avgHrs:1.8, tripCount:3},
+        {origin:'PROJ-SLEX-02', dest:'PROJ-NLEX-01',  route:'PROJ-SLEX-02 → PROJ-NLEX-01',avgHrs:5.2, tripCount:2},
+        {origin:'PROJ-C5-03',   dest:'MAIN-DEPOT',    route:'PROJ-C5-03 → MAIN-DEPOT',    avgHrs:1.2, tripCount:2}
+      ],
+      SV:[
+        {origin:'MAIN-DEPOT',   dest:'PROJ-C5-03',    route:'MAIN-DEPOT → PROJ-C5-03',    avgHrs:1.1, tripCount:4},
+        {origin:'PROJ-C5-03',   dest:'PROJ-CAVEX-04', route:'PROJ-C5-03 → PROJ-CAVEX-04', avgHrs:3.1, tripCount:2},
+        {origin:'PROJ-CAVEX-04',dest:'MAIN-DEPOT',    route:'PROJ-CAVEX-04 → MAIN-DEPOT', avgHrs:2.9, tripCount:2}
+      ],
+      CT:[
+        {origin:'MAIN-DEPOT',   dest:'PROJ-TPLEX-05', route:'MAIN-DEPOT → PROJ-TPLEX-05', avgHrs:6.3, tripCount:3},
+        {origin:'PROJ-TPLEX-05',dest:'MAIN-DEPOT',    route:'PROJ-TPLEX-05 → MAIN-DEPOT', avgHrs:6.1, tripCount:3},
+        {origin:'MAIN-DEPOT',   dest:'PROJ-C5-03',    route:'MAIN-DEPOT → PROJ-C5-03',    avgHrs:1.3, tripCount:2}
+      ],
+      LTR:[
+        {origin:'MAIN-DEPOT',   dest:'PROJ-NLEX-01',  route:'MAIN-DEPOT → PROJ-NLEX-01',  avgHrs:2.6, tripCount:2},
+        {origin:'MAIN-DEPOT',   dest:'PROJ-SLEX-02',  route:'MAIN-DEPOT → PROJ-SLEX-02',  avgHrs:2.0, tripCount:1}
+      ]
+    },
+    outliers:[
+      {equipment:'CT-002', date:'2026-10-14', totalHrs:26.5, exceeds:2.5,  severity:'error', sheets:'Utilize'},
+      {equipment:'TT-001', date:'2026-10-12', totalHrs:25.0, exceeds:1.0,  severity:'error', sheets:'Travel'},
+      {equipment:'SV-001', date:'2026-10-10', totalHrs:28.4, exceeds:4.4,  severity:'error', sheets:'Idle'}
+    ],
+    odoSmrOutliers:[
+      // Active Travel distance outliers (review all four meter readings)
+      {equipment:'TT-002', date:'2026-10-15', evdtrNo:'EVDTR-DEMO-0138', sheet:'Travel', rowNumber:12, metric:'ODO', startReading:1000, endReading:1612, odoStartReading:1000, odoEndReading:1612, smrStartReading:2200, smrEndReading:2205, distanceReading:612, suspectField:'Start ODO or End ODO; also verify both SMR values', recommendedAction:'Check all four readings against the signed EVDTR. Distance will be recalculated from the ODO pair.', reason:'Distance Travelled is 612 km, above the credible 500 km limit.', anomalyType:'distance_high', severity:'critical', jump:612, limit:500, exceeds:112, status:'active', firstFlagged:'2026-10-15', fixedDate:'', daysFlagged:7},
+      {equipment:'CT-003', date:'2026-10-13', evdtrNo:'EVDTR-DEMO-0136', sheet:'Travel', rowNumber:10, metric:'ODO', startReading:2400, endReading:2940, odoStartReading:2400, odoEndReading:2940, smrStartReading:4100, smrEndReading:4107, distanceReading:540, suspectField:'Start ODO or End ODO; also verify both SMR values', recommendedAction:'Check all four readings against the signed EVDTR. Distance will be recalculated from the ODO pair.', reason:'Distance Travelled is 540 km, above the credible 200 km limit.', anomalyType:'distance_high', severity:'critical', jump:540, limit:200, exceeds:340, status:'active', firstFlagged:'2026-10-13', fixedDate:'', daysFlagged:9},
+      {equipment:'SV-003', date:'2026-10-14', evdtrNo:'EVDTR-DEMO-0137', sheet:'Travel', rowNumber:11, metric:'TIME', startReading:'05:30', endReading:'23:45', departureReading:'05:30', arrivalReading:'23:45', timeReading:18.25, suspectField:'Departure or Arrival', recommendedAction:'Check both times against the signed EVDTR. Time Travelled will be recalculated automatically.', reason:'Time Travelled is 18.25 hours, above the credible 16-hour per-trip limit.', anomalyType:'time_high', severity:'critical', jump:18.25, limit:16, exceeds:2.25, status:'active', firstFlagged:'2026-10-14', fixedDate:'', daysFlagged:8},
+      // Fixed ODO outlier (corrected 2 days ago)
+      {equipment:'TT-001', date:'2026-10-10', evdtrNo:'EVDTR-DEMO-0130', sheet:'Travel',  metric:'ODO', jump:580, limit:500, exceeds:80,  status:'fixed',  firstFlagged:'2026-10-10', fixedDate:'2026-10-20', daysFlagged:10},
+      // Active SMR outliers
+      {equipment:'CT-002', date:'2026-10-14', evdtrNo:'EVDTR-DEMO-0140', sheet:'Utilize', rowNumber:18, metric:'SMR', startReading:5000, endReading:5245, reason:'SMR increased 245 hrs in one entry; the credible limit is 24.', anomalyType:'high_jump', severity:'critical', jump:245, limit:24, exceeds:221,  status:'active', firstFlagged:'2026-10-14', fixedDate:'', daysFlagged:8},
+      {equipment:'LTR-001',date:'2026-10-12', evdtrNo:'EVDTR-DEMO-0135', sheet:'Utilize', rowNumber:15, metric:'SMR', startReading:3200, endReading:3378, reason:'SMR increased 178 hrs in one entry; the credible limit is 24.', anomalyType:'high_jump', severity:'critical', jump:178, limit:24, exceeds:154,  status:'active', firstFlagged:'2026-10-12', fixedDate:'', daysFlagged:10},
+      // Fixed SMR outlier (corrected 3 days ago)
+      {equipment:'SV-002', date:'2026-10-08', evdtrNo:'EVDTR-DEMO-0121', sheet:'Idle',    metric:'SMR', jump:190, limit:150, exceeds:40,  status:'fixed',  firstFlagged:'2026-10-08', fixedDate:'2026-10-19', daysFlagged:11}
+    ],
+    utilizeActivity:{
+      TT:[
+        {desc:'Hauling',             count:18, totalHrs:144.0},
+        {desc:'Loading',             count:12, totalHrs:36.5},
+        {desc:'Waiting to Load',     count:8,  totalHrs:16.0},
+        {desc:'Spotting',            count:5,  totalHrs:12.5},
+        {desc:'Gravel Hauling',      count:3,  totalHrs:24.0}
+      ],
+      SV:[
+        {desc:'Site Inspection',     count:10, totalHrs:20.0},
+        {desc:'Personnel Transport', count:7,  totalHrs:14.5},
+        {desc:'Material Delivery',   count:4,  totalHrs:8.0}
+      ],
+      CT:[
+        {desc:'Concrete Pouring',    count:14, totalHrs:112.0},
+        {desc:'Backfilling',         count:9,  totalHrs:72.0},
+        {desc:'Excavation Support',  count:6,  totalHrs:48.0},
+        {desc:'Compaction',          count:4,  totalHrs:32.0}
+      ],
+      LTR:[
+        {desc:'Lubrication Service', count:11, totalHrs:55.0},
+        {desc:'Oil Change Support',  count:4,  totalHrs:16.0}
+      ]
+    },
+    waitData:{
+      load:{
+        TT:[
+          {equipment:'TT-001',projectCode:'PROJ-NLEX-01',projectDesc:'North Luzon Expressway Extension', avgWaitHrs:1.8,totalWaitHrs:9.0, count:5},
+          {equipment:'TT-002',projectCode:'PROJ-SLEX-02',projectDesc:'South Luzon Expressway Phase 2',   avgWaitHrs:2.4,totalWaitHrs:7.2, count:3},
+          {equipment:'TT-003',projectCode:'PROJ-TPLEX-05',projectDesc:'TPLEX Segment 5 Earthworks',     avgWaitHrs:3.1,totalWaitHrs:6.2, count:2}
+        ],
+        SV:[
+          {equipment:'SV-001',projectCode:'PROJ-C5-03',   projectDesc:'C5 Road Widening Project',       avgWaitHrs:0.9,totalWaitHrs:3.6, count:4},
+          {equipment:'SV-002',projectCode:'PROJ-CAVEX-04',projectDesc:'Cavite Expressway Link',          avgWaitHrs:1.3,totalWaitHrs:2.6, count:2}
+        ],
+        CT:[
+          {equipment:'CT-001',projectCode:'PROJ-NLEX-01',projectDesc:'North Luzon Expressway Extension', avgWaitHrs:2.2,totalWaitHrs:8.8, count:4},
+          {equipment:'CT-002',projectCode:'PROJ-SLEX-02',projectDesc:'South Luzon Expressway Phase 2',   avgWaitHrs:4.0,totalWaitHrs:12.0,count:3},
+          {equipment:'CT-003',projectCode:'PROJ-TPLEX-05',projectDesc:'TPLEX Segment 5 Earthworks',     avgWaitHrs:1.5,totalWaitHrs:3.0, count:2}
+        ],
+        LTR:[
+          {equipment:'LTR-001',projectCode:'MAIN-DEPOT', projectDesc:'Main Equipment Depot',            avgWaitHrs:0.5,totalWaitHrs:1.5, count:3}
+        ]
+      },
+      unload:{
+        TT:[
+          {equipment:'TT-001',projectCode:'PROJ-NLEX-01',projectDesc:'North Luzon Expressway Extension', avgWaitHrs:2.1,totalWaitHrs:10.5,count:5},
+          {equipment:'TT-002',projectCode:'PROJ-SLEX-02',projectDesc:'South Luzon Expressway Phase 2',   avgWaitHrs:1.6,totalWaitHrs:4.8, count:3},
+          {equipment:'TT-003',projectCode:'PROJ-C5-03',  projectDesc:'C5 Road Widening Project',         avgWaitHrs:3.5,totalWaitHrs:7.0, count:2}
+        ],
+        SV:[
+          {equipment:'SV-001',projectCode:'PROJ-CAVEX-04',projectDesc:'Cavite Expressway Link',          avgWaitHrs:1.1,totalWaitHrs:4.4, count:4},
+          {equipment:'SV-002',projectCode:'PROJ-C5-03',   projectDesc:'C5 Road Widening Project',        avgWaitHrs:0.8,totalWaitHrs:1.6, count:2}
+        ],
+        CT:[
+          {equipment:'CT-001',projectCode:'PROJ-TPLEX-05',projectDesc:'TPLEX Segment 5 Earthworks',     avgWaitHrs:3.3,totalWaitHrs:13.2,count:4},
+          {equipment:'CT-002',projectCode:'PROJ-NLEX-01',projectDesc:'North Luzon Expressway Extension', avgWaitHrs:5.1,totalWaitHrs:15.3,count:3},
+          {equipment:'CT-003',projectCode:'PROJ-SLEX-02',projectDesc:'South Luzon Expressway Phase 2',   avgWaitHrs:2.0,totalWaitHrs:4.0, count:2}
+        ],
+        LTR:[
+          {equipment:'LTR-001',projectCode:'PROJ-NLEX-01',projectDesc:'North Luzon Expressway Extension',avgWaitHrs:1.2,totalWaitHrs:2.4, count:2}
+        ]
+      }
+    }
+  };
+  data.evdtrLog=data.recentRecords;
+  return data;
+}
+function rnd(a,b){ return Math.round((Math.random()*(b-a)+a)*10)/10; }
+</script>
+</body>
+</html>
